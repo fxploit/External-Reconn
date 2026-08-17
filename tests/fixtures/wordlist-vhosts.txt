@@ -1,0 +1,4 @@
+intranet.corp.test
+admin.corp.test
+api.corp.test
+mail.corp.test

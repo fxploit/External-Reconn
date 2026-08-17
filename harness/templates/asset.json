@@ -1,0 +1,12 @@
+{
+  "asset_id": "AST-UNSET",
+  "target": "UNSET",
+  "source_url": "UNSET",
+  "asset_kind": "UNSET",
+  "http_status": null,
+  "raw_ref": "UNSET",
+  "normalized_ref": "UNSET",
+  "asset_sha256": "UNSET",
+  "content_type": "UNSET",
+  "collected_at": "UNSET"
+}

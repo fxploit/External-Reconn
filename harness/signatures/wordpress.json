@@ -1,0 +1,36 @@
+{
+  "product": "WordPress",
+  "signatures": [
+    {
+      "id": "wp-content-path",
+      "asset_kinds": ["html", "css", "js"],
+      "match": { "type": "regex", "pattern": "wp-content/" },
+      "implies": { "provenance": "confirmed" },
+      "note": "wp-content 경로는 WordPress 정적 자산 경로 관용구 — 원본에 실재하므로 confirmed(제품 확정, 버전 미상)"
+    },
+    {
+      "id": "wp-generator-meta",
+      "asset_kinds": ["html"],
+      "match": {
+        "type": "regex",
+        "pattern": "<meta name=\"generator\" content=\"WordPress\\s*(?P<version>[0-9]+(?:\\.[0-9]+)+)\""
+      },
+      "implies": { "provenance": "confirmed" },
+      "note": "generator 메타의 정확 버전 — 원본에 실재하므로 confirmed"
+    },
+    {
+      "id": "wp-login",
+      "asset_kinds": ["html"],
+      "match": { "type": "regex", "pattern": "wp-login\\.php" },
+      "implies": { "provenance": "confirmed" },
+      "note": "wp-login.php 링크 — WordPress 존재 확정(버전 미상)"
+    },
+    {
+      "id": "wp-json-api",
+      "asset_kinds": ["html", "js"],
+      "match": { "type": "regex", "pattern": "wp-json/|wp/v2" },
+      "implies": { "provenance": "inferred" },
+      "note": "REST API 엔드포인트 — WordPress 확률 높으나 버전 미상"
+    }
+  ]
+}

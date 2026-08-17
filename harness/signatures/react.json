@@ -1,0 +1,67 @@
+{
+  "product": "React",
+  "signatures": [
+    {
+      "id": "react-banner-version",
+      "asset_kinds": ["js"],
+      "match": {
+        "type": "regex",
+        "pattern": "[Rr]eact(?:-dom)?(?:\\.production\\.min)?\\.js\\?[^\\n]*|/\\*[^*]*react[^*]*v(?P<version>[0-9]+\\.[0-9]+\\.[0-9]+)"
+      },
+      "implies": { "provenance": "confirmed" },
+      "note": "라이브러리 배너 주석에 박힌 정확 버전 — 원본에 실재하므로 confirmed"
+    },
+    {
+      "id": "react-version-assignment",
+      "asset_kinds": ["js"],
+      "match": {
+        "type": "regex",
+        "pattern": "(?:React\\.version|reactVersion|exports\\.version)\\s*=\\s*[\"'](?P<version>[0-9]+\\.[0-9]+\\.[0-9]+)[\"']"
+      },
+      "implies": { "provenance": "confirmed" },
+      "note": "dev 빌드가 노출하는 version 대입 — 정확 버전 캡처"
+    },
+    {
+      "id": "react-createRoot",
+      "asset_kinds": ["js"],
+      "match": { "type": "regex", "pattern": "createRoot\\s*\\(" },
+      "implies": { "version_bound": ">=18", "provenance": "inferred" },
+      "note": "createRoot / concurrent root API는 React 18 도입 → 버전 하한 18"
+    },
+    {
+      "id": "react-useId",
+      "asset_kinds": ["js"],
+      "match": { "type": "regex", "pattern": "\\buseId\\b" },
+      "implies": { "version_bound": ">=18", "provenance": "inferred" },
+      "note": "useId 훅은 React 18 도입"
+    },
+    {
+      "id": "react-fiber-property",
+      "asset_kinds": ["js", "html"],
+      "match": { "type": "regex", "pattern": "__reactFiber\\$|__reactContainer\\$|__reactProps\\$" },
+      "implies": { "version_bound": ">=16", "provenance": "inferred" },
+      "note": "Fiber 내부 property 네이밍은 React 16+ (구버전은 __reactInternalInstance$)"
+    },
+    {
+      "id": "react-legacy-internal",
+      "asset_kinds": ["js", "html"],
+      "match": { "type": "regex", "pattern": "__reactInternalInstance\\$" },
+      "implies": { "version_bound": "15-16", "provenance": "inferred" },
+      "note": "구 내부 인스턴스 네이밍 — 15~16 흔적"
+    },
+    {
+      "id": "react-hooks-dispatcher",
+      "asset_kinds": ["js"],
+      "match": { "type": "regex", "pattern": "ReactCurrentDispatcher|useState|useEffect" },
+      "implies": { "version_bound": ">=16.8", "provenance": "inferred" },
+      "note": "Hooks는 16.8 도입 → 하한 16.8"
+    },
+    {
+      "id": "react-data-reactroot",
+      "asset_kinds": ["html"],
+      "match": { "type": "regex", "pattern": "data-reactroot" },
+      "implies": { "version_bound": "15-16", "provenance": "inferred" },
+      "note": "data-reactroot SSR 마커는 React 17에서 제거 → 15~16 범위"
+    }
+  ]
+}

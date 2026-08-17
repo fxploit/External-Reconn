@@ -1,0 +1,32 @@
+{
+  "product": "PHP",
+  "signatures": [
+    {
+      "id": "php-powered-by-header",
+      "asset_kinds": ["header"],
+      "match": {
+        "type": "regex",
+        "pattern": "^X-Powered-By:\\s*.*PHP/(?P<version>[0-9]+\\.[0-9]+(?:\\.[0-9]+)?)"
+      },
+      "implies": { "provenance": "confirmed" },
+      "note": "X-Powered-By 응답 헤더의 PHP 배너(__headers__.txt) — 원본에 실재하므로 confirmed"
+    },
+    {
+      "id": "php-version-banner",
+      "asset_kinds": ["header", "html"],
+      "match": {
+        "type": "regex",
+        "pattern": "PHP/(?P<version>[0-9]+\\.[0-9]+\\.[0-9]+)"
+      },
+      "implies": { "provenance": "confirmed" },
+      "note": "헤더/본문 어디든 남은 PHP 버전 문자열 — 정확 버전 캡처"
+    },
+    {
+      "id": "php-default-ext",
+      "asset_kinds": ["html"],
+      "match": { "type": "regex", "pattern": "\\.php(?:\\?[^\"']*)?[\"'\\s]" },
+      "implies": { "provenance": "guess" },
+      "note": ".php 링크 확장자 — PHP 존재 추정(약한 단서)"
+    }
+  ]
+}

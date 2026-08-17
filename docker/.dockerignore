@@ -1,0 +1,12 @@
+# 빌드 컨텍스트 제외 — 대상 자산(민감정보 포함)과 로컬 의존성은 이미지에 넣지 않는다.
+targets/
+node_modules/
+.git/
+.gitignore
+README.md
+TASK.md
+기록.md
+scope.md
+scripts/__pycache__/
+**/__pycache__/
+*.pyc

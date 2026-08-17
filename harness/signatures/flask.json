@@ -1,0 +1,22 @@
+{
+  "product": "Flask",
+  "signatures": [
+    {
+      "id": "flask-session-cookie",
+      "asset_kinds": ["cookie"],
+      "match": {
+        "type": "regex",
+        "pattern": "\\bsession=(?=[A-Za-z0-9_-]{8,}(?:\\.[A-Za-z0-9_-]{4,}){1,2}\\b)"
+      },
+      "implies": { "provenance": "guess" },
+      "note": "session 쿠키가 itsdangerous 서명 형식(base64url[.구분자])으로 보임(lookahead로 값 원문을 인용하지 않음) — Flask 계열 사용 추정(약한 단서)"
+    },
+    {
+      "id": "flask-debugger-marker",
+      "asset_kinds": ["html"],
+      "match": { "type": "regex", "pattern": "Werkzeug Debugger|werkzeug\\.debugger" },
+      "implies": { "provenance": "inferred" },
+      "note": "Werkzeug 인터랙티브 디버거 페이지 마커 — Flask/Werkzeug 앱에서만 기본 제공"
+    }
+  ]
+}

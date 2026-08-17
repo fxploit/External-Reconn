@@ -1,0 +1,26 @@
+{
+  "product": "Laravel",
+  "signatures": [
+    {
+      "id": "laravel-csrf-meta",
+      "asset_kinds": ["html"],
+      "match": { "type": "regex", "pattern": "<meta name=\"csrf-token\" content=" },
+      "implies": { "provenance": "guess" },
+      "note": "csrf-token 메타는 Laravel/Blade 관용구지만 다른 프레임워크도 씀 — 약한 단서"
+    },
+    {
+      "id": "laravel-branding",
+      "asset_kinds": ["html"],
+      "match": { "type": "regex", "pattern": "Laravel" },
+      "implies": { "provenance": "guess" },
+      "note": "페이지에 남은 Laravel 브랜딩(기본 오류/환영 화면) — 약한 단서"
+    },
+    {
+      "id": "laravel-mix-assets",
+      "asset_kinds": ["html"],
+      "match": { "type": "regex", "pattern": "/mix-manifest\\.json|__vite__" },
+      "implies": { "provenance": "guess" },
+      "note": "Laravel Mix/Vite 자산 매니페스트 — 약한 단서"
+    }
+  ]
+}

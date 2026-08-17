@@ -1,0 +1,5 @@
+# 로컬 직접 실행(폴백)용 파이썬 의존성.
+# 컨테이너 실행이면 docker/Dockerfile 이 이미 이 항목들을 고정한다.
+#   pip install -r requirements.txt
+playwright==1.53.0
+jsbeautifier==2.0.3

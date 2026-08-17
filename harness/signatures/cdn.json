@@ -1,0 +1,25 @@
+{
+  "product": "CDN",
+  "signatures": [
+    { "id": "cdn-cloudflare-server", "asset_kinds": ["header"],
+      "match": { "type": "regex", "pattern": "^Server:\\s*cloudflare" },
+      "implies": { "provenance": "confirmed" },
+      "note": "Cloudflare CDN Server 헤더" },
+    { "id": "cdn-fastly", "asset_kinds": ["header"],
+      "match": { "type": "regex", "pattern": "^X-Served-By:\\s*cache-|^X-Timer:|^Fastly-Debug-" },
+      "implies": { "provenance": "confirmed" },
+      "note": "Fastly CDN 헤더" },
+    { "id": "cdn-cloudfront", "asset_kinds": ["header"],
+      "match": { "type": "regex", "pattern": "^X-Cache:[^\\n]*cloudfront|^x-amz-cf-id:|^X-Amz-Cf-Pop:" },
+      "implies": { "provenance": "confirmed" },
+      "note": "Amazon CloudFront 헤더" },
+    { "id": "cdn-akamai", "asset_kinds": ["header"],
+      "match": { "type": "regex", "pattern": "^X-Cache:[^\\n]*akamai|^X-Akamai-" },
+      "implies": { "provenance": "confirmed" },
+      "note": "Akamai CDN 헤더" },
+    { "id": "cdn-xcache-generic", "asset_kinds": ["header"],
+      "match": { "type": "regex", "pattern": "^X-Cache:|^Age:\\s*\\d+|^Via:[^\\n]*cache" },
+      "implies": { "provenance": "guess" },
+      "note": "일반 캐시/CDN 흔적(약한 단서)" }
+  ]
+}

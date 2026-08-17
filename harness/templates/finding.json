@@ -1,0 +1,21 @@
+{
+  "target": "UNSET",
+  "generated_by": "UNSET",
+  "findings": [
+    {
+      "finding_id": "FND-001",
+      "asset_kind": "UNSET",
+      "product": "unidentified",
+      "version": "unknown",
+      "version_bound": "UNSET",
+      "provenance": "unknown",
+      "evidence_path": "UNSET",
+      "evidence_quote": "UNSET",
+      "asset_sha256": "UNSET",
+      "reasoning": "UNSET",
+      "verified_by": [],
+      "report_eligible": false
+    }
+  ],
+  "unmatched": []
+}

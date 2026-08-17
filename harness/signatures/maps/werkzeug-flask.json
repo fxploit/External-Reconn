@@ -1,0 +1,11 @@
+{
+  "source": "Flask 공식 배포판의 Werkzeug 의존성 범위(install_requires)에 기반한 'Werkzeug 버전 → Flask 릴리스 시기' 매핑. 정확한 Flask 버전 특정이 아니라 시기(범위) 추정용(inferred).",
+  "map": [
+    { "werkzeug_min": "0.12.0", "flask_version_bound": "0.12", "note": "Flask 0.12 시대(Werkzeug 0.11~0.12)" },
+    { "werkzeug_min": "1.0.0", "flask_version_bound": "1.0-1.1", "note": "Flask 1.0/1.1 시대(Werkzeug 1.0)" },
+    { "werkzeug_min": "2.0.0", "flask_version_bound": "2.0-2.1", "note": "Flask 2.0/2.1 시대(Werkzeug 2.0/2.1 허용)" },
+    { "werkzeug_min": "2.2.0", "flask_version_bound": "2.2-2.3", "note": "Flask 2.2/2.3 시대(Werkzeug 2.2/2.3 허용)" },
+    { "werkzeug_min": "3.0.0", "flask_version_bound": ">=3.0", "note": "Flask 3.0 시대(Werkzeug>=3.0 요구)" },
+    { "werkzeug_min": "3.1.0", "flask_version_bound": ">=3.1", "note": "Flask 3.1 시대(Werkzeug>=3.1 요구)" }
+  ]
+}

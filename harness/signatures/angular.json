@@ -1,0 +1,46 @@
+{
+  "product": "Angular",
+  "signatures": [
+    {
+      "id": "angular-version-banner",
+      "asset_kinds": ["js"],
+      "match": {
+        "type": "regex",
+        "pattern": "Angular\\s+v?(?P<version>[0-9]+\\.[0-9]+\\.[0-9]+)"
+      },
+      "implies": { "provenance": "confirmed" },
+      "note": "angular.js 배너 주석의 정확 버전 — 원본에 실재하므로 confirmed"
+    },
+    {
+      "id": "angular-ngversion",
+      "asset_kinds": ["js"],
+      "match": {
+        "type": "regex",
+        "pattern": "ngVersion\\s*=\\s*[\"'](?P<version>[0-9]+\\.[0-9]+\\.[0-9]+)[\"']"
+      },
+      "implies": { "provenance": "confirmed" },
+      "note": "dev 빌드가 노출하는 ngVersion 대입 — 정확 버전 캡처"
+    },
+    {
+      "id": "angular-module",
+      "asset_kinds": ["js"],
+      "match": { "type": "regex", "pattern": "angular\\.module\\(\\s*[\"']" },
+      "implies": { "version_bound": "<9", "provenance": "inferred" },
+      "note": "angular.module 정의 — AngularJS(1.x) 관용구. Angular 2+는 @NgModule 사용"
+    },
+    {
+      "id": "angular-ng-app",
+      "asset_kinds": ["html"],
+      "match": { "type": "regex", "pattern": "ng-app\\s*=|ng-controller\\s*=" },
+      "implies": { "version_bound": "<9", "provenance": "inferred" },
+      "note": "AngularJS 디렉티브 속성 — HTML에서 직접 확인"
+    },
+    {
+      "id": "angular-zone-js",
+      "asset_kinds": ["js"],
+      "match": { "type": "regex", "pattern": "Zone\\.__zone_symbol__|zone\\.js|__zone_symbol__" },
+      "implies": { "version_bound": ">=2", "provenance": "guess" },
+      "note": "zone.js 바인딩은 Angular 2+ 런타임 흔적(약한 단서)"
+    }
+  ]
+}

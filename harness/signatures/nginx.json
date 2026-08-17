@@ -1,0 +1,22 @@
+{
+  "product": "nginx",
+  "signatures": [
+    {
+      "id": "nginx-server-header",
+      "asset_kinds": ["header"],
+      "match": {
+        "type": "regex",
+        "pattern": "^Server:\\s*.*\\bnginx(?:/(?P<version>[0-9]+\\.[0-9]+\\.[0-9]+))?"
+      },
+      "implies": { "provenance": "confirmed" },
+      "note": "Server 응답 헤더의 nginx 배너(__headers__.txt) — 원본에 실재하므로 confirmed"
+    },
+    {
+      "id": "nginx-default-page",
+      "asset_kinds": ["html"],
+      "match": { "type": "regex", "pattern": "Welcome to nginx!|nginx/[0-9]+\\.[0-9]+\\.[0-9]+" },
+      "implies": { "provenance": "inferred" },
+      "note": "기본 환영/오류 페이지의 nginx 문자열 — 버전 미상(inferred)"
+    }
+  ]
+}

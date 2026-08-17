@@ -1,0 +1,33 @@
+{
+  "product": "Next.js",
+  "signatures": [
+    {
+      "id": "next-data-script",
+      "asset_kinds": ["html"],
+      "match": { "type": "regex", "pattern": "__NEXT_DATA__" },
+      "implies": { "provenance": "confirmed" },
+      "note": "Next.js SSR 가 주입하는 __NEXT_DATA__ 스크립트 — 원본에 실재하므로 confirmed(제품 확정)"
+    },
+    {
+      "id": "next-chunks-path",
+      "asset_kinds": ["js", "html"],
+      "match": { "type": "regex", "pattern": "/_next/static/chunks/" },
+      "implies": { "provenance": "inferred" },
+      "note": "Next.js 코드 스플릿 청크 경로 — 버전은 미상(inferred)"
+    },
+    {
+      "id": "next-build-id",
+      "asset_kinds": ["html"],
+      "match": { "type": "regex", "pattern": "buildId\\s*:\\s*[\"'][^\"']+[\"']" },
+      "implies": { "provenance": "inferred" },
+      "note": "__NEXT_DATA__ 의 buildId — 버전은 미상"
+    },
+    {
+      "id": "next-framework-marker",
+      "asset_kinds": ["html"],
+      "match": { "type": "literal", "pattern": "next-static-chunk-placeholder" },
+      "implies": { "provenance": "guess" },
+      "note": "Next.js 내부 플레이스홀더 — 약한 단서"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "product": "Werkzeug",
+  "signatures": [
+    {
+      "id": "werkzeug-server-header",
+      "asset_kinds": ["header"],
+      "match": {
+        "type": "regex",
+        "pattern": "^Server:\\s*.*\\bWerkzeug/(?P<version>[0-9]+\\.[0-9]+\\.[0-9]+)"
+      },
+      "implies": { "provenance": "confirmed" },
+      "note": "Server 헤더의 Werkzeug 버전(__headers__.txt) — 정확 버전 confirmed. Werkzeug 자체가 서버이며 Flask 버전은 아님. Flask 릴리스 범위는 maps/werkzeug-flask.json 매핑"
+    }
+  ]
+}

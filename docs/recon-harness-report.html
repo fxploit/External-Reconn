@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recon Harness 실행 상세 보고서</title>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#171e2e; --panel2:#1e2740; --line:#2a3554;
+    --fg:#dbe4f4; --muted:#8ea0c0; --accent:#4fd1c5; --accent2:#7aa2ff;
+    --warn:#f0c674; --err:#f07178; --ok:#9ece6a; --mono:#a8c0e0;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font-family:"Segoe UI","Malgun Gothic",sans-serif;line-height:1.65}
+  header{background:linear-gradient(135deg,#101828,#1a2547);padding:34px 40px 26px;border-bottom:1px solid var(--line)}
+  header h1{margin:0 0 8px;font-size:26px;letter-spacing:.3px}
+  header p{margin:2px 0;color:var(--muted);font-size:14px}
+  .wrap{display:flex;max-width:1180px;margin:0 auto}
+  nav{width:230px;flex:0 0 230px;position:sticky;top:0;align-self:flex-start;
+      max-height:100vh;overflow:auto;padding:18px 12px;border-right:1px solid var(--line)}
+  nav a{display:block;color:var(--muted);text-decoration:none;padding:6px 10px;
+        border-radius:6px;font-size:13px;margin:2px 0}
+  nav a:hover{background:var(--panel2);color:var(--fg)}
+  nav .lvl2{padding-left:22px;font-size:12px}
+  main{flex:1;padding:24px 40px 80px;min-width:0}
+  section{margin-bottom:42px}
+  h2{font-size:21px;border-bottom:2px solid var(--accent);padding-bottom:6px;
+     margin:46px 0 14px;color:#fff}
+  h3{font-size:16px;color:var(--accent2);margin:26px 0 8px}
+  h4{font-size:14px;margin:18px 0 6px;color:var(--fg)}
+  p{font-size:14px}
+  ul,ol{font-size:14px;padding-left:22px}
+  li{margin:4px 0}
+  code{font-family:Consolas,"Cascadia Mono",monospace;background:#0b101a;
+       padding:1px 6px;border-radius:4px;font-size:12.5px;color:var(--mono);border:1px solid #223}
+  pre{background:#0b101a;border:1px solid var(--line);border-radius:8px;padding:14px 16px;
+      overflow-x:auto;font-size:12.5px;line-height:1.55}
+  pre code{border:none;background:none;padding:0;color:var(--mono)}
+  .cmd{color:#c5d5f5}
+  .out{color:#9ece6a}
+  .cmt{color:#6b7b9c}
+  .box{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin:14px 0}
+  .box .t{font-size:12px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+  .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)}
+  table{border-collapse:collapse;width:100%;font-size:13px;margin:12px 0}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:#fff}
+  tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+  .pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11.5px;font-weight:600}
+  .p-confirmed{background:#14301f;color:var(--ok);border:1px solid #2c5a3a}
+  .p-inferred{background:#1c2a45;color:var(--accent2);border:1px solid #2f4a7d}
+  .p-guess{background:#33270f;color:var(--warn);border:1px solid #5c4a1c}
+  .p-unknown{background:#2a2a33;color:var(--muted);border:1px solid #464}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:900px){.wrap{flex-direction:column}nav{position:static;width:auto;max-height:none}.grid2{grid-template-columns:1fr}}
+  footer{color:var(--muted);font-size:12px;text-align:center;padding:20px;border-top:1px solid var(--line)}
+  .kbd{background:#111827;border:1px solid #3a;border-bottom-width:2px;border-radius:4px;padding:0 6px;font-size:12px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Recon Harness — 실행 동작 상세 보고서</h1>
+  <p>정찰 하네스가 실행될 때 무슨 일이 일어나는지, 예시와 함께 단계별로 설명한다.</p>
+  <p>Docker 컨테이너가 하는 일 · 결과물이 어떻게 생기는지 · 어디에 저장되는지 · 게이트가 어떻게 검증하는지</p>
+</header>
+
+<div class="wrap">
+<nav>
+  <a href="#s1">1. 한눈에 보는 실행 흐름</a>
+  <a href="#s2">2. 시작 전 준비 (셋팅)</a>
+  <a class="lvl2" href="#s2-1">2.1 scope.md · 워크스페이스</a>
+  <a class="lvl2" href="#s2-2">2.2 Docker 세션 시작</a>
+  <a href="#s3">3. 수동 수집 (PLAN)</a>
+  <a class="lvl2" href="#s3-1">3.1 정적 수집 예시</a>
+  <a class="lvl2" href="#s3-2">3.2 SPA 수집 예시</a>
+  <a class="lvl2" href="#s3-3">3.3 헤더·쿠키 1급 자산</a>
+  <a href="#s4">4. 정규화 · 결정론 핑거프린트</a>
+  <a href="#s5">5. AI fallback + 2차 재검증</a>
+  <a href="#s6">6. 능동 정찰 (GO → RUN)</a>
+  <a href="#s7">7. 게이트 검증 (GO/REVISE/STOP)</a>
+  <a href="#s8">8. 결과물 저장 위치</a>
+  <a href="#s9">9. 증거 규율 · 마스킹</a>
+  <a href="#s10">10. 구현 태스크 요약</a>
+  <a href="#s11">11. 운영자 체크리스트</a>
+</nav>
+
+<main>
+
+<!-- 1. overview -->
+<section id="s1">
+<h2>1. 한눈에 보는 실행 흐름</h2>
+<p>정찰 하네스는 <b>“컨테이너가 수집·실행만 하고, 검증은 호스트 게이트가 파일에서 독립적으로 다시 계산”</b>하는
+구조다. 컨테이너 안에서 무슨 주장을 하든, 호스트가 실제 파일에서 해시와 인용을 재계산하므로 거짓이 통과하지 못한다.</p>
+
+<pre>
+┌─────────────── 호스트(로컬) ───────────────────────────────┐
+│  오케스트레이터(Claude Code)                                │
+│    │  위임 (콜드 스타트 서브에이전트)                        │
+│    ▼                                                        │
+│  서브에이전트 ── docker compose up -d ──▶ recon 컨테이너    │
+│              ── docker exec recon &lt;명령&gt; ──▶ (수집·실행)   │
+│    ▲                                  │  원본 + 해시          │
+│    │  독립 재검증                      ▼                      │
+│  게이트(check-recon.mjs) ◀── 마운트 볼륨  targets/           │
+│    (해시·인용 재계산 → GO/REVISE/STOP)                        │
+└──────────────────────────────────────────────────────────────┘
+</pre>
+
+<p>전체 파이프라인은 <code>PLAN → GO → RUN → CHECK</code> 4단계로 나뉜다.</p>
+<table>
+  <tr><th>단계</th><th>무엇을 하나</th><th>승인</th><th>예</th></tr>
+  <tr><td><b>PLAN</b></td><td>수동 수집·정규화·핑거프린트·AI 추론</td><td>불필요(저위험)</td>
+      <td><code>collect_web.py</code>, <code>fingerprint.py</code></td></tr>
+  <tr><td><b>GO</b></td><td>능동 정찰 승인</td><td><b>사람의 <span class="kbd">GO &lt;recon_id&gt;</span></b></td>
+      <td><code>GO RECON-02</code></td></tr>
+  <tr><td><b>RUN</b></td><td>포트·디렉터리·vhost·DNS·프로브</td><td>GO + <code>--approved</code></td>
+      <td><code>active_recon.py</code></td></tr>
+  <tr><td><b>CHECK</b></td><td>2차 재검증 → 발견 확정 → 보고</td><td>사람 판정</td>
+      <td><code>second_pass.py</code>, <code>check-recon.mjs</code></td></tr>
+</table>
+</section>
+
+<!-- 2. setup -->
+<section id="s2">
+<h2>2. 시작 전 준비 (셋팅)</h2>
+
+<h3 id="s2-1">2.1 scope.md · 타깃 워크스페이스</h3>
+<p>모든 정찰은 허용 대역 안에서만 한다. <code>scope.md</code>가 대역을 선언하고, 게이트가 이를 읽어
+대역 밖 타깃이면 <b>STOP</b>한다. CTF 대역 확정 시 반드시 갱신해야 한다.</p>
+<pre><span class="cmt"># scope.md (CTF 당일 실제 대역으로 교체)</span>
+허용 대역: 10.10.110.0/24, 10.10.111.0/24
+<span class="cmt">&lt;!-- 예시 대역은 주석 안에만 — 게이트는 주석을 제거한 뒤 파싱한다(T19#5) --&gt;</span></pre>
+
+<p>타깃 하나마다 워크스페이스를 만든다. 생성 직후 디렉터리 모습:</p>
+<pre class="cmd">node scripts/new-target.mjs 10.10.110.5</pre>
+<pre class="out">created targets/10.10.110.5/  (findings.json, report.md, captures/)
+다음: python scripts/collect_web.py &lt;url&gt; --target 10.10.110.5</pre>
+<pre>
+targets/10.10.110.5/
+├── findings.json          <span class="cmt"># 발견(제품·버전·provenance·근거) — 하네스 간 계약</span>
+├── report.md              <span class="cmt"># 보고서 템플릿</span>
+└── captures/
+    ├── raw/               <span class="cmt"># 원본 자산(JS/CSS/HTML/헤더/쿠키) — gitignore</span>
+    ├── normalized/        <span class="cmt"># 정규화본(beautify·언패킹) — gitignore</span>
+    └── observation/       <span class="cmt"># 관찰: 응답·쿠키·도구 출력·자체로그 — gitignore</span>
+</pre>
+
+<h3 id="s2-2">2.2 Docker 세션 시작</h3>
+<p>도구 환경은 이미지로 고정한다. <b>장수 컨테이너</b> 모델이라 세션에 한 번만 띄우고, 이후 명령은
+<code>docker exec</code>로 투입한다(명령마다 재시작하지 않음 — chromium 등 무거운 도구와 세션 상태 유지).</p>
+
+<pre class="cmd"># 1) 빌드 → digest 를 compose.yaml 에 고정 (환경 결정론화)
+docker build -t recon-harness -f docker/Dockerfile .
+docker images --no-trunc --format '{{.ID}}' recon-harness
+<span class="cmt">#   -> sha256:f5478de0c5bb...  (docker/compose.yaml 의 image: recon-harness@sha256:... 에 기록)</span>
+
+# 2) 세션 시작 (한 번)
+docker compose -f docker/compose.yaml up -d
+
+# 3) 명령은 래퍼로 투입 (없으면 up -d, 실행 후 manifest 에 runtime_image_digest 기록)
+node scripts/recon.mjs python scripts/collect_web.py http://10.10.110.5/ --target 10.10.110.5
+
+# 4) 세션 종료 (Cleanup)
+docker compose -f docker/compose.yaml down</pre>
+
+<div class="box">
+  <div class="t">컨테이너가 하는 일</div>
+  <ul>
+    <li>이미지 안에 고정된 도구: <b>nmap · gobuster · cariddi · playwright(chromium) · python 의존성</b></li>
+    <li>마운트 볼륨: <code>./targets:/work/targets</code>, <code>./scope.md:/work/scope.md:ro</code>,
+        <code>./wordlists:/work/wordlists:ro</code></li>
+    <li>컨테이너는 <b>증거(원본 파일)를 쓰기만</b> 한다. 검증은 호스트 게이트가 한다.</li>
+  </ul>
+</div>
+
+<div class="box">
+  <div class="t">Windows Docker Desktop 주의</div>
+  <p>컨테이너 안의 <code>localhost</code>는 컨테이너 자신이다. 호스트의 로컬 서버를 수집하려면
+  <code>http://host.docker.internal:포트/</code>를 쓴다.</p>
+</div>
+</section>
+
+<!-- 3. collection -->
+<section id="s3">
+<h2>3. 수동 수집 (PLAN)</h2>
+
+<h3 id="s3-1">3.1 정적 수집 예시</h3>
+<p><code>collect_web.py</code>는 페이지 접속으로 오가는 것만 수집한다(저위험, GO 불필요). 의존성 없음.</p>
+<pre class="cmd">python scripts/collect_web.py http://10.10.110.5/ --target 10.10.110.5</pre>
+<pre class="out">[*] fetching entry: http://10.10.110.5/ (depth=1)
+[+] js       http://10.10.110.5/assets/vendor/jquery-3.6.0.min.js -> targets/10.10.110.5/captures/raw/01_jquery-3.6.0.min.js
+[+] js       http://10.10.110.5/assets/app.js                     -> targets/10.10.110.5/captures/raw/02_app.js
+[+] css      http://10.10.110.5/assets/app.css                    -> targets/10.10.110.5/captures/raw/03_app.css
+[+] header   (entry response headers)                             -> targets/10.10.110.5/captures/raw/__headers__.txt
+[+] cookie   (3 cookies)                                          -> targets/10.10.110.5/captures/raw/__cookies__.txt
+[i] 외부 도메인 링크 1건 기록만 함(미크롤): .../external-links.txt
+[*] 7 assets saved (depth=1)
+[*] manifest: targets/10.10.110.5/captures/manifest.json</pre>
+
+<h4>깊이 제한 크롤 (T16)</h4>
+<p><code>--depth 2</code>를 주면 동일 호스트(같은 IP) 내부의 링크만 따라가고, 외부 도메인은
+<code>observation/external-links.txt</code>에 <b>기록만</b> 한다(크롤하지 않음).</p>
+
+<h3 id="s3-2">3.2 SPA 수집 예시</h3>
+<p>SPA는 빈 껍데기 HTML을 주고 런타임에 JS로 콘텐츠를 만든다. <code>collect_spa.py</code>는 헤드리스
+Chromium으로 페이지를 실제 실행해 네트워크 응답·렌더 DOM·쿠키를 잡는다.</p>
+<pre class="cmd">python scripts/collect_spa.py http://10.10.110.5/ --target 10.10.110.5 --wait 2</pre>
+<pre class="out">[+] html     http://10.10.110.5/ -> targets/10.10.110.5/captures/raw/01_html_1.html
+[+] js       http://10.10.110.5/_next/static/chunks/webpack-abc.js -> .../raw/02_webpack-abc.js
+[+] html     (rendered DOM)      -> targets/10.10.110.5/captures/raw/03_rendered_dom.html
+[+] header   (entry response headers) -> .../raw/04___headers__.txt
+[+] cookie   (2 cookies)          -> .../raw/05___cookies__.txt
+[*] 5 assets saved (mode=spa)</pre>
+<p>렌더 DOM에는 런타임에서 실제로 읽은 React Fiber 지문이 기록된다(직렬화에 안 나오는 expando):
+<code>&lt;!-- react-fiber-props: __reactContainer$…, __reactFiber$…, __reactProps$… --&gt;</code></p>
+
+<h3 id="s3-3">3.3 헤더·쿠키 1급 자산 (T9)</h3>
+<p>응답 헤더와 쿠키도 일반 자산으로 승격된다 — 따라서 시그니처 매칭·근거 바인딩·게이트 재검증이 그대로 적용된다.
+쿠키 <b>값 원문</b>은 gitignore 대상인 <code>captures/raw/</code>에만 있고, 지문은 이름·플래그·형식만 쓴다.</p>
+<pre><span class="cmt"># targets/10.10.110.5/captures/raw/__headers__.txt</span>
+Server: Werkzeug/3.0.1 Python/3.12.3
+X-Powered-By: PHP/7.4.33
+
+<span class="cmt"># targets/10.10.110.5/captures/raw/__cookies__.txt</span>
+csrftoken=abc123...; Path=/; SameSite=Lax
+sessionid=xyz...; HttpOnly; Path=/</pre>
+
+<p>수집기가 manifest에 각 자산의 <code>asset_sha256</code>을 기록한다. 이 해시가 이후 모든 근거 바인딩의
+기준이 된다.</p>
+<pre>{
+  "target": "10.10.110.5",
+  "entry_url": "http://10.10.110.5/",
+  "produced_by": "collect_web.py",
+  "runtime_image_digest": "sha256:f5478de0c5bb012950ba910a2755dcd28846ba0b0d86d6f00102cf931e83bdba",
+  "assets": [
+    { "asset_id": "AST-000", "asset_kind": "html",
+      "raw_ref": "targets/10.10.110.5/captures/raw/00_html_0.html",
+      "asset_sha256": "b9afe3538a89aa8dcb0324c56b7ec367af881b8d1b44b4161c3653059bca8ebb",
+      ... },
+    { "asset_id": "AST-HDR", "asset_kind": "header", "raw_ref": ".../__headers__.txt", ... }
+  ]
+}</pre>
+</section>
+
+<!-- 4. normalize + fingerprint -->
+<section id="s4">
+<h2>4. 정규화 · 결정론 핑거프린트</h2>
+<p>난독화 JS는 beautify·언패킹 후 지문을 뽑는다. 목표는 복호화가 아니라 <b>기계가 매칭 가능한 정규화</b>다.</p>
+<pre class="cmd">python scripts/normalize_js.py 10.10.110.5
+python scripts/fingerprint.py 10.10.110.5</pre>
+<pre class="out">[*] 47 signatures loaded
+[*] findings: 12 (confirmed=1 inferred=10 guess=1), unmatched=0
+[*] written: targets/10.10.110.5/findings.json</pre>
+
+<p><code>fingerprint.py</code>는 <code>harness/signatures/*.json</code> 규칙(데이터)을 자산에 매칭한다.
+<span class="pill p-confirmed">confirmed</span> = 근거 문자열이 파일에 바이트 그대로 실재.
+<span class="pill p-inferred">inferred</span> = API/관용구로 도출한 범위.
+<span class="pill p-unknown">unknown</span> = 판단 불가(정답).</p>
+
+<p>실제 픽스처에서 나온 발견 예시(FND-002, FND-012 등 요약):</p>
+<table>
+  <tr><th>finding_id</th><th>제품</th><th>버전</th><th>provenance</th><th>근거(evidence_quote)</th></tr>
+  <tr><td>FND-001</td><td>Werkzeug</td><td>3.0.1</td><td><span class="pill p-confirmed">confirmed</span></td><td><code>Server: Werkzeug/3.0.1</code></td></tr>
+  <tr><td>FND-002</td><td>Django</td><td>unknown</td><td><span class="pill p-inferred">inferred</span></td><td><code>csrftoken</code> (쿠키 이름)</td></tr>
+  <tr><td>FND-003</td><td>Django</td><td>unknown</td><td><span class="pill p-inferred">inferred</span></td><td><code>sessionid</code> (쿠키 이름)</td></tr>
+  <tr><td>FND-004</td><td>Flask</td><td>unknown</td><td><span class="pill p-guess">guess</span></td><td><code>session=</code> (서명 형식)</td></tr>
+  <tr><td>FND-005</td><td>Django</td><td>unknown</td><td><span class="pill p-inferred">inferred</span></td><td><code>action="/admin/login/</code></td></tr>
+  <tr><td>FND-012</td><td>Flask</td><td>&gt;=3.0</td><td><span class="pill p-inferred">inferred</span></td><td>map: Werkzeug 3.0.1 → Flask 릴리스 시기</td></tr>
+</table>
+
+<div class="box">
+  <div class="t">버전 매핑·해시 DB (T11)</div>
+  <ul>
+    <li><b>Werkzeug → Flask</b>: confirmed Werkzeug 버전을 <code>maps/werkzeug-flask.json</code>으로 Flask
+        릴리스 시기(<span class="pill p-inferred">inferred</span>)로 변환. 정확한 Flask 버전이 아니라 "시기"다.</li>
+    <li><b>Django admin 정적 해시</b>: <code>maps/django-static-hashes.json</code>은 <b>공식 PyPI 릴리스 휠에서
+        추출한</b> sha256→버전. 자산 해시가 일치하면 Django 버전 <span class="pill p-confirmed">confirmed</span>.
+        재구축: <code>python scripts/build_django_hash_db.py --versions ...</code></li>
+  </ul>
+</div>
+
+<div class="box">
+  <div class="t">멱등 병합 (T18) — 데이터 유실 방지</div>
+  <p>fingerprint 를 재실행해도 다른 스크립트가 만든 발견을 파괴하지 않는다. 외부 출처
+  (<code>active_recon.py:*</code>, <code>fallback-inference:*</code>, <code>second-pass</code>, …) 는 보존하고
+  fingerprint 소유(<code>generated_by: fingerprint.py</code>)만 교체한다.</p>
+</div>
+
+<pre class="out"><span class="cmt"># findings.json — finding 하나의 완전한 구조</span>
+{
+  "finding_id": "FND-001",
+  "generated_by": "fingerprint.py",
+  "asset_kind": "header",
+  "product": "Werkzeug",
+  "version": "3.0.1",
+  "version_bound": "UNSET",
+  "provenance": "confirmed",
+  "evidence_path": "targets/10.10.110.5/captures/raw/__headers__.txt",
+  "evidence_quote": "Server: Werkzeug/3.0.1",
+  "asset_sha256": "ec8decec0681ce850e492b9a91b03862...",
+  "reasoning": "signature werkzeug-server-header: Server 헤더의 Werkzeug 버전...",
+  "verified_by": ["fingerprint.py:werkzeug-server-header"],
+  "report_eligible": false
+}</pre>
+</section>
+
+<!-- 5. fallback + second pass -->
+<section id="s5">
+<h2>5. AI fallback · 2차 재검증</h2>
+
+<h3>AI fallback (T2) — 결정론이 못 잡은 자산</h3>
+<p>시그니처가 못 잡은 자산은 <code>unmatched[]</code>에 보존된다. 이 자산만 서브에이전트가
+<code>harness/prompts/fallback-inference.md</code> 계약대로 판단한다. 핵심 규칙:</p>
+<ul>
+  <li>제품/버전은 <b>자산에서 바이트 그대로 인용 가능할 때만</b> 제시.</li>
+  <li>출력은 <span class="pill p-inferred">inferred</span>/<span class="pill p-guess">guess</span>/<span class="pill p-unknown">unknown</span>만. <b>confirmed 금지</b>(AI 자가 승격 금지).</li>
+  <li>판단 불가는 <code>unknown</code> — 모르면 모른다고 하는 게 성공.</li>
+</ul>
+<pre class="cmd">python scripts/merge_fallback.py 10.10.110.5 judgments.json</pre>
+<pre class="out">[+] upgraded AST-001 -&gt; FND-006 (guess) quote='recon-harness fixture site'
+[*] merged=6 total findings, unmatched=2
+[i] unknown 유지(보존): ['AST-005']
+[!] 병합 거부(rejected) 2 — REVISE 대상:
+    - {"asset_id": "AST-002", "reason": "evidence_quote not found in asset — fabricated"}</pre>
+<p>지어낸 인용은 병합 전 바이트 검증과 게이트 재검증이 <b>이중으로</b> 잡는다.</p>
+
+<h3>2차 재검증 (T3) — 맥락 제거 재판정</h3>
+<p>고가치 발견은 제품·버전을 <b>알려주지 않고</b> 증거(인용+원문 일부)만 주고 다시 판단한다. 판정이 어긋나면
+<code>confirmed → inferred</code>로 자동 강등.</p>
+<pre class="cmd">python scripts/second_pass.py 10.10.110.5 --prepare
+python scripts/second_pass.py 10.10.110.5 --apply verdicts.json</pre>
+<pre class="out">[+] FND-001 support — provenance 유지(confirmed)
+[!] FND-002 contradict — 1차 판정과 상충 → confirmed 에서 inferred 로 강등</pre>
+</section>
+
+<!-- 6. active recon -->
+<section id="s6">
+<h2>6. 능동 정찰 (GO → RUN)</h2>
+<p>능동 정찰은 타깃 상태를 바꾸거나 부하를 주므로 <b>사람의 <span class="kbd">GO &lt;recon_id&gt;</span> + <code>--approved</code></b>
+가 필수다. 승인 없이 실행하면 요청을 <b>한 건도</b> 보내지 않고 STOP한다.</p>
+
+<h3>포트/서비스 스캔 + 배너 → confirmed (T5)</h3>
+<pre class="cmd">node scripts/recon.mjs python scripts/active_recon.py 10.10.110.5 \
+    --target 10.10.110.5 --recon-id RECON-02 --approved --nmap-args "-sV -p 8000"</pre>
+<pre class="out">[*] 실행: /usr/bin/nmap -Pn -sV -p 8000 10.10.110.5
+[*] stdout/stderr/exit=0 -> targets/10.10.110.5/captures/observation/nmap-RECON-02.txt
+[+] finding FND-010: http SimpleHTTPServer 0.6 (Python 3.12.3) (confirmed)</pre>
+<p>배너 원문이 <code>observation/nmap-RECON-02.txt</code>에 저장되고, 그 파일에 바인딩된다.
+도구 출력이 근거이므로 <span class="pill p-confirmed">confirmed</span>.</p>
+
+<h3>서버사이드 프로브 (T12)</h3>
+<pre class="cmd">python scripts/active_recon.py 10.10.110.5 --target 10.10.110.5 --recon-id RECON-03 \
+    --approved --server-probe --port 80</pre>
+<pre class="out">[+] probe django-admin-login        200 http://10.10.110.5/admin/login/ -> .../raw/08_html_8.html
+[+] probe django-admin-base         200 http://10.10.110.5/static/admin/css/base.css -> .../raw/09_base.css
+[*] fingerprint 재실행(프로브 자산 매칭)...</pre>
+<p>프로브 응답을 <b>자산으로 저장</b>하고 fingerprint를 재실행해 시그니처·해시 DB를 그대로 적용한다.
+Django admin base.css가 실제 파일이면 해시 DB로 버전 confirmed까지 나온다.</p>
+
+<h3>vhost 발견 (T4) — baseline 대조로 오탐 억제</h3>
+<pre class="cmd">python scripts/discover_vhost.py 10.10.110.5 --target 10.10.110.5 \
+    --recon-id RECON-01 --approved --domain corp.htb</pre>
+<pre class="out">[*] baseline(random vhost) host=xswswsbzxckwrz.invalid status=404 size=41
+[+] vhost 후보: admin.corp.htb   (상태코드 다름 (baseline 404 vs 200))
+[+] vhost 후보: intranet.corp.htb  (상태코드 다름 (baseline 404 vs 200))
+[*] 테스트 33건, 후보 2건
+[*] 후보 vhost 는 사람이 확인 후 재수집하세요:
+      python scripts/collect_spa.py http://admin.corp.htb/ --target admin.corp.htb --host-map admin.corp.htb=10.10.110.5</pre>
+<p>무작위 vhost 기준선과 상태/크기/해시를 비교해, 와일드카드 오탐은 걸러낸다.</p>
+
+<h3>DNS·서브도메인 (T17) / AWS (T14)</h3>
+<ul>
+  <li><code>discover_dns.py --passive</code> — 수집 자산에서 <code>*.corp.htb</code> 호스트 문자열 추출(저위험).</li>
+  <li><code>discover_dns.py --active --approved</code> — 워드리스트 DNS 브루트. 해석 IP가 대역 밖이면 기록만.</li>
+  <li><code>aws_recon.py --s3-buckets --approved-for-public</code> — 공인 AWS 접근은 <b>사람 허용 필수</b>.
+      메타데이터(169.254.169.254)는 "접근 신호"까지만 기록, 취득은 익스플로잇 하네스에 위임.</li>
+</ul>
+</section>
+
+<!-- 7. gate -->
+<section id="s7">
+<h2>7. 게이트 검증 (GO / REVISE / STOP)</h2>
+<p>마지막 관문은 <code>npm run check -- &lt;target&gt;</code>이다. 코드가 아니라 <b>게이트가</b> 검증한다.</p>
+<pre class="cmd">npm run check -- 10.10.110.5</pre>
+
+<h3>GO — 모든 근거가 무결</h3>
+<pre class="out">TARGET=10.10.110.5 DECISION=GO</pre>
+
+<h3>REVISE — 누락·미검증·조작</h3>
+<p>게이트는 파일에서 해시를 재계산하고 인용 바이트를 다시 찾는다. 지어낸 인용이나 형식만 맞는 해시는
+fabricated로 잡힌다.</p>
+<pre class="out">TARGET=x DECISION=REVISE
+  - targets/x/findings.json#FND-999: evidence_quote not found in evidence_path file
+    — quote may be fabricated rather than copied from the asset
+  - targets/x/findings.json#FND-001: asset_sha256 does not match sha256(evidence file)
+    — fabricated rather than computed</pre>
+
+<h3>STOP — 스코프 위반</h3>
+<pre class="out">TARGET=192.168.50.7 DECISION=STOP
+  - STOP scope.md: target 192.168.50.7 은 허용 대역(10.10.110.0/24) 밖 — 정찰 금지</pre>
+
+<table>
+  <tr><th>판정</th><th>조건</th><th>예</th></tr>
+  <tr><td><span class="ok">GO</span></td><td>scope 안, 근거·해시·인용 무결, findings 존재</td><td>정상 수집·핑거프린트</td></tr>
+  <tr><td><span class="warn">REVISE</span></td><td>근거 없는 confirmed / 해시 불일치 / 인용 조작 / findings 없음</td><td>AI가 지어낸 인용</td></tr>
+  <tr><td><span class="err">STOP</span></td><td>허용 대역 밖 타깃</td><td>랩 외부 IP</td></tr>
+</table>
+</section>
+
+<!-- 8. storage -->
+<section id="s8">
+<h2>8. 결과물 저장 위치</h2>
+<p>컨테이너는 <code>/work/targets</code>에 쓰고, 이는 호스트 <code>./targets</code>에 실시간 마운트된다.
+즉 결과물은 항상 호스트 로컬에 있고, 게이트가 그 파일들을 독립 검증한다.</p>
+<pre>
+targets/&lt;host&gt;/
+├── captures/
+│   ├── raw/                       <span class="cmt"># 원본 자산 (JS/CSS/HTML/헤더/쿠키/렌더DOM) — gitignore</span>
+│   │   ├── 00_html_0.html
+│   │   ├── 01_jquery-3.6.0.min.js
+│   │   ├── __headers__.txt        <span class="cmt"># 응답 헤더 (asset_kind: header)</span>
+│   │   ├── __cookies__.txt        <span class="cmt"># 쿠키 (asset_kind: cookie) — 값 원문은 여기만</span>
+│   │   └── 05_rendered_dom.html   <span class="cmt"># 렌더 DOM + react-fiber 지문</span>
+│   ├── normalized/                <span class="cmt"># 정규화본 (beautify·언패킹) — gitignore</span>
+│   └── observation/               <span class="cmt"># 관찰 — gitignore</span>
+│       ├── entry-error.txt        <span class="cmt"># 실패도 보존(삭제 금지)</span>
+│       ├── nmap-RECON-02.txt      <span class="cmt"># 능동 도구 stdout/stderr/exit</span>
+│       ├── server-probe-RECON-03.json
+│       ├── extract-&lt;host&gt;.json    <span class="cmt"># 시크릿 원문(gitignore) — finding엔 마스킹만</span>
+│       └── external-links.txt     <span class="cmt"># 대역 밖/외부 링크 기록만</span>
+├── manifest.json                  <span class="cmt"># 자산 목록 + asset_sha256 + runtime_image_digest + produced_by</span>
+├── findings.json                  <span class="cmt"># 최종 발견(계약) — 하네스 간 인터페이스</span>
+├── self-repair-log.md/.json       <span class="cmt"># 자가개선 로그(T20)</span>
+└── report.md                      <span class="cmt"># 보고서</span>
+</pre>
+<p>gitignore 대상: <code>captures/raw/</code>, <code>captures/normalized/</code>,
+<code>captures/observation/</code>. 민감정보(쿠키·시크릿 원문)는 저장소에 커밋되지 않는다.</p>
+</section>
+
+<!-- 9. evidence discipline -->
+<section id="s9">
+<h2>9. 증거 규율 · 마스킹</h2>
+
+<h3>provenance 4등급</h3>
+<table>
+  <tr><th>등급</th><th>뜻</th><th>승격 조건</th></tr>
+  <tr><td><span class="pill p-confirmed">confirmed</span></td><td>근거 문자열이 원본에 바이트 그대로 실재, 또는 결정론 도구 해시 일치</td><td>evidence_path(실재 파일) + evidence_quote(실제 부분 문자열) + asset_sha256(재계산 일치)</td></tr>
+  <tr><td><span class="pill p-inferred">inferred</span></td><td>코드 패턴으로 도출한 하한/범위</td><td>근거 자산 인용, 단정 안 함</td></tr>
+  <tr><td><span class="pill p-guess">guess</span></td><td>약한 정황</td><td>보고서에 추측으로만</td></tr>
+  <tr><td><span class="pill p-unknown">unknown</span></td><td>판단 불가</td><td><b>정식 값. 모르면 이걸 뱉는 게 성공</b></td></tr>
+</table>
+<p><b>AI는 confirmed로 자가 승격할 수 없다.</b> 결정론 도구 매칭(fingerprint/active_recon/extract/discover/aws)
+또는 second-pass 재검증이 있어야 한다(게이트가 verified_by로 강제).</p>
+
+<h3>바이트 기준 재검증</h3>
+<p>인용 대조·해시는 인코딩과 무관하게 <b>바이트</b>로 한다. 원본이 CP949/EUC-KR/UTF-8 BOM이어도
+게이트는 <code>evidence_quote</code>의 UTF-8 바이트를 파일 바이트에서 직접 찾는다.</p>
+
+<h3>시크릿·쿠키 마스킹</h3>
+<pre>
+<span class="cmt"># findings.json 에는 원문이 없다 — 형식 프리픽스 + 마스킹만</span>
+"evidence_quote": "AKIA",          <span class="cmt"># 형식 프리픽스(비밀 아님), 파일에 실재</span>
+"secret_masked": "AKIA...len=20",  <span class="cmt"># 앞 4자 + 길이</span>
+<span class="cmt"># 원문은 observation/extract-&lt;host&gt;.json (gitignore) 에만</span>
+</pre>
+</section>
+
+<!-- 10. tasks -->
+<section id="s10">
+<h2>10. 구현 태스크 요약 (T1~T20)</h2>
+<table>
+  <tr><th>#</th><th>기능</th><th>파일</th></tr>
+  <tr><td>T1</td><td>Docker 실행 환경(장수 컨테이너, 이미지 @sha256 고정)</td><td>docker/Dockerfile, compose.yaml, scripts/recon.mjs</td></tr>
+  <tr><td>T2</td><td>AI fallback 추론(인용 바이트 검증, confirmed 거부)</td><td>harness/prompts/fallback-inference.md, scripts/merge_fallback.py</td></tr>
+  <tr><td>T3</td><td>2차 재검증(contradict → 강등)</td><td>harness/prompts/second-pass-verify.md, scripts/second_pass.py</td></tr>
+  <tr><td>T4</td><td>vhost 발견(baseline 오탐 억제, GO)</td><td>scripts/discover_vhost.py</td></tr>
+  <tr><td>T5</td><td>능동 정찰(nmap 배너 confirmed + 디렉터리)</td><td>scripts/active_recon.py</td></tr>
+  <tr><td>T6/T10</td><td>시그니처 DB(프론트+서버사이드)</td><td>harness/signatures/*.json</td></tr>
+  <tr><td>T9</td><td>헤더·쿠키 1급 매칭 자산</td><td>collect_web/collect_spa/fingerprint</td></tr>
+  <tr><td>T11</td><td>버전 매핑·정적 해시 DB</td><td>harness/signatures/maps/*, build_django_hash_db.py</td></tr>
+  <tr><td>T12</td><td>서버사이드 능동 프로브</td><td>active_recon.py --server-probe</td></tr>
+  <tr><td>T13</td><td>운영 보강(워드리스트 마운트, 배너 파싱)</td><td>wordlists/, active_recon.parse_banner</td></tr>
+  <tr><td>T14</td><td>AWS 인프라 정찰(S3 공개·메타 신호)</td><td>scripts/aws_recon.py</td></tr>
+  <tr><td>T15</td><td>자산 추출(시크릿 마스킹·엔드포인트·에러, cariddi)</td><td>scripts/extract_assets.py</td></tr>
+  <tr><td>T16</td><td>스코프 제한 크롤(--depth)</td><td>collect_web.py</td></tr>
+  <tr><td>T17</td><td>서브도메인·DNS 발견(passive+active)</td><td>scripts/discover_dns.py</td></tr>
+  <tr><td>T18</td><td>fingerprint 멱등 병합(외부 발견 보존)</td><td>fingerprint.py merge_idempotent</td></tr>
+  <tr><td>T19</td><td>검토 결함 수정(vhost --domain, dir 스키마, scope 주석)</td><td>discover_vhost/active_recon/checks.mjs</td></tr>
+  <tr><td>T20</td><td>자가개선 메커니즘(variants·가드레일·로그·채택)</td><td>scripts/lib/self_repair.py</td></tr>
+  <tr><td>T8</td><td>테스트·회귀 방지</td><td>tests/, <code>npm test</code></td></tr>
+</table>
+</section>
+
+<!-- 11. checklist -->
+<section id="s11">
+<h2>11. 운영자 체크리스트</h2>
+<div class="grid2">
+<div class="box">
+  <div class="t">CTF 당일 (필수)</div>
+  <ol>
+    <li><code>scope.md</code> 허용 대역을 실제 할당 대역으로 교체</li>
+    <li>접근 방식(VPN 등) 확정 시 <code>docker/compose.yaml</code> 접근 프로파일 채우기</li>
+    <li>이미지 빌드 후 digest 재고정(코드 변경 시마다)</li>
+    <li>워드리스트(SecLists 등)를 <code>wordlists/</code>에 배치</li>
+  </ol>
+</div>
+<div class="box">
+  <div class="t">실행 중 규율</div>
+  <ul>
+    <li>능동 정찰은 반드시 <span class="kbd">GO &lt;recon_id&gt;</span> 후 <code>--approved</code></li>
+    <li>스코프 밖 IP 관찰 시 즉시 STOP·자동 확장 금지</li>
+    <li>실패·미매칭·UNKNOWN 삭제 금지(observation 보존)</li>
+    <li>쿠키·시크릿 원문은 findings/report에 넣지 않음(마스킹)</li>
+    <li>신뢰 앵커(게이트·계약)는 자가수정 금지 → STOP 후 사람 보고</li>
+  </ul>
+</div>
+</div>
+<div class="box">
+  <div class="t">하네스 간 인계 (다음 하네스)</div>
+  <p><code>findings.json</code>이 계약이다. CVE 매핑 하네스는 <span class="pill p-confirmed">confirmed</span>
+  (product, version)만 자동 진행하고, 그 이하는 재검증을 요구한다.</p>
+</div>
+</section>
+
+</main>
+</div>
+
+<footer>Recon Harness — 실행 동작 상세 보고서 · 컨테이너는 수집만, 검증은 호스트 게이트가 · AI 출력은 Evidence가 아니다</footer>
+</body>
+</html>

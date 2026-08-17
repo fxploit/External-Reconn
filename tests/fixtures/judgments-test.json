@@ -1,0 +1,35 @@
+{
+  "judgments": [
+    {
+      "asset_id": "AST-001",
+      "product": "fixture-site",
+      "version": "unknown",
+      "version_bound": "UNSET",
+      "provenance": "guess",
+      "evidence_quote": "recon-harness fixture site",
+      "reasoning": "HTML <title>에 하네스 식별 문자열이 바이트 그대로 존재"
+    },
+    {
+      "asset_id": "AST-002",
+      "product": "FakeCSSLib",
+      "version": "9.9.9",
+      "provenance": "inferred",
+      "evidence_quote": "FakeCSSLib 9.9.9",
+      "reasoning": "지어낸 인용 — 파일에 없는 문자열 (REVISE 안전망 테스트)"
+    },
+    {
+      "asset_id": "AST-005",
+      "provenance": "unknown",
+      "product": "unidentified",
+      "version": "unknown",
+      "reasoning": "판단 불가 — unknown이 정답"
+    },
+    {
+      "asset_id": "AST-001",
+      "product": "ShouldBeRejected",
+      "provenance": "confirmed",
+      "evidence_quote": "recon-harness fixture site",
+      "reasoning": "confirmed 자가 승격 시도 — 거부되어야 함"
+    }
+  ]
+}

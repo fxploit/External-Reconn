@@ -1,0 +1,18 @@
+{
+  "verdicts": [
+    {
+      "finding_id": "FND-001",
+      "verdict": "support",
+      "product_supported": "jQuery",
+      "version_supported": "3.6.0",
+      "reason": "배너 주석에 jQuery JavaScript Library v3.6.0 이 바이트 그대로 존재"
+    },
+    {
+      "finding_id": "FND-002",
+      "verdict": "contradict",
+      "product_supported": "unknown",
+      "version_supported": "unknown",
+      "reason": "인용 자체는 jQuery.fn.jquery 패턴이나, 근거가 약해 1차 확정(confirmed)을 지지하지 못함"
+    }
+  ]
+}

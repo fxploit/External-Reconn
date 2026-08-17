@@ -1,0 +1,22 @@
+{
+  "product": "Apache",
+  "signatures": [
+    {
+      "id": "apache-server-header",
+      "asset_kinds": ["header"],
+      "match": {
+        "type": "regex",
+        "pattern": "^Server:\\s*.*\\bApache(?:/(?P<version>[0-9]+\\.[0-9]+\\.[0-9]+))?"
+      },
+      "implies": { "provenance": "confirmed" },
+      "note": "Server 응답 헤더의 Apache 배너(__headers__.txt) — 원본에 실재하므로 confirmed"
+    },
+    {
+      "id": "apache-default-page",
+      "asset_kinds": ["html"],
+      "match": { "type": "regex", "pattern": "Apache[0-9]? Ubuntu Default Page|It works!\\s*</" },
+      "implies": { "provenance": "inferred" },
+      "note": "기본 환영 페이지의 Apache 문구 — 버전 미상(inferred)"
+    }
+  ]
+}

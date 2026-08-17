@@ -1,0 +1,39 @@
+# recon-harness compose — 장수(long-lived) 컨테이너 모델
+#
+# 세션 시작:  docker compose -f docker/compose.yaml up -d      # 한 번 (접근 설정 후 유지)
+# 각 명령:    node scripts/recon.mjs <cmd...>                   # docker exec 로 투입
+# 세션 종료:  docker compose -f docker/compose.yaml down        # Cleanup
+#
+# - 이미지는 태그가 아니라 @sha256:<digest> 로 고정한다. 빌드 후:
+#     docker images --no-trunc --format '{{.ID}}' recon-harness
+#   로 나온 digest 를 아래 image 에 기록한다.
+# - container_name 을 `recon` 으로 고정해 `docker exec recon <cmd>` 가 동작한다.
+# - targets/ 를 마운트해 결과(원본·manifest)가 실시간으로 호스트에 저장된다.
+#   호스트 게이트가 그 파일에서 해시·인용을 독립 재계산한다(컨테이너는 증거를 쓰기만).
+#
+# ⚠️ 네트워크 접근(VPN/직접 라우팅/점프호스트)은 CTF 당일 확정되며 현재 미정이다.
+#    확정되면 아래 접근 프로파일 예시처럼 별도 서비스를 추가하고 이 주석을 지운다.
+#    코어(수집·정규화·핑거프린트·게이트)는 접근 방식과 무관하게 동작해야 한다.
+services:
+  recon:
+    # docker images --no-trunc --format '{{.ID}}' recon-harness 로 확보한 digest 로 고정
+    image: recon-harness@sha256:71c3d56af39c0db51152640ce8b5a4eba3e41161291a3e6fa3ca1c5be557b896
+    container_name: recon
+    working_dir: /work
+    volumes:
+      - ../targets:/work/targets
+      - ../scope.md:/work/scope.md:ro
+      - ../wordlists:/work/wordlists:ro
+    command: ["sleep", "infinity"]
+    restart: "no"
+
+  # ── 네트워크 접근 프로파일 예시(미정 — 확정 전 비워둔다) ──────────────
+  # OpenVPN 이 확정되면:
+  #   recon-vpn:
+  #     extends: recon
+  #     cap_add: [NET_ADMIN]
+  #     devices: [/dev/net/tun]
+  #     volumes:
+  #       - ../targets:/work/targets
+  #       - ../.vpn:/vpn:ro
+  #     entrypoint: ["sh", "-c", "openvpn --config /vpn/client.ovpn --daemon && sleep infinity"]

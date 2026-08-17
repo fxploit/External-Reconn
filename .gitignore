@@ -1,0 +1,17 @@
+# 타깃 작업 데이터(정찰 결과: findings/report/manifest·원본 자산)는 로컬 전용.
+# 실호스트의 공격 표면 정보이므로 공개 저장소에 올리지 않는다. targets/ 는 빈 채로만 배포.
+targets/*/
+!targets/.gitkeep
+
+# (참고) 원본 자산은 민감정보(쿠키/토큰)를 포함 — 위 규칙으로 이미 전부 제외됨.
+
+# 자가개선 변형본(로컬 전용)
+scripts/variants/*
+!scripts/variants/.gitkeep
+
+# python
+__pycache__/
+*.pyc
+
+# node
+node_modules/

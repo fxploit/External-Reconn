@@ -1,0 +1,12 @@
+{
+  "name": "recon-harness",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AI 외부 정찰 하네스 — 웹 자산 기반 제품·버전 핑거프린팅 (환각 통제 게이트 포함)",
+  "scripts": {
+    "new:target": "node scripts/new-target.mjs",
+    "check": "node scripts/check-recon.mjs",
+    "test": "node --test \"tests/*.test.mjs\" && python tests/test_python.py"
+  }
+}

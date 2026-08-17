@@ -1,0 +1,40 @@
+{
+  "product": "Django",
+  "signatures": [
+    {
+      "id": "django-csrftoken",
+      "asset_kinds": ["cookie"],
+      "match": { "type": "regex", "pattern": "\\bcsrftoken\\b" },
+      "implies": { "provenance": "inferred" },
+      "note": "Django 가 발급하는 csrftoken 쿠키 이름 — Django 사용 추정(값 원문은 인용하지 않음)"
+    },
+    {
+      "id": "django-sessionid",
+      "asset_kinds": ["cookie"],
+      "match": { "type": "regex", "pattern": "\\bsessionid\\b" },
+      "implies": { "provenance": "inferred" },
+      "note": "Django 세션 쿠키 이름 sessionid — Django 사용 추정"
+    },
+    {
+      "id": "django-admin-login",
+      "asset_kinds": ["html"],
+      "match": { "type": "regex", "pattern": "action=[\"']/admin/login/" },
+      "implies": { "provenance": "inferred" },
+      "note": "Django admin 로그인 폼의 액션 경로 — Django 관리자 확인"
+    },
+    {
+      "id": "django-static-admin",
+      "asset_kinds": ["html", "css", "js"],
+      "match": { "type": "regex", "pattern": "/static/admin/" },
+      "implies": { "provenance": "inferred" },
+      "note": "Django admin 정적 자산 경로 — 버전 미상(버전별 해시는 maps/django-static-hashes.json)"
+    },
+    {
+      "id": "django-debug-error",
+      "asset_kinds": ["html"],
+      "match": { "type": "regex", "pattern": "Django Version:|DEBUG = True" },
+      "implies": { "provenance": "inferred" },
+      "note": "DEBUG=True 노란 에러페이지의 Django 버전 표기 — 능동 프로브에서 트리거"
+    }
+  ]
+}

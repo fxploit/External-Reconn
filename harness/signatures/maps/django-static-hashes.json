@@ -1,0 +1,68 @@
+{
+  "source": "Django 공식 PyPI 릴리스 휠에서 admin 정적 자산 추출 (license: BSD-3-Clause).",
+  "built_by": "scripts/build_django_hash_db.py",
+  "hashes": {
+    "b88aaaacc7154bc7144b06b39fe4951cac33ad9b01de4f87870e0c38c06cef87": {
+      "asset": "admin/css/base.css",
+      "versions": [
+        "3.2.25"
+      ]
+    },
+    "82b35881a9eea20c9d700e99e04fb036407cfe7e2fec4ef420b63437c4d884da": {
+      "asset": "admin/css/login.css",
+      "versions": [
+        "3.2.25"
+      ]
+    },
+    "fc1724fefb8122844378d5a3ecb1d8ddb361411e274dc743892a6125857ae10e": {
+      "asset": "admin/css/nav_sidebar.css",
+      "versions": [
+        "3.2.25"
+      ]
+    },
+    "5110d313f65f4c50cc63ca07b07e3f8e9daf32dda616df88ef9f333572971657": {
+      "asset": "admin/css/base.css",
+      "versions": [
+        "4.2.11"
+      ]
+    },
+    "05d02447ef9cc5de476570cd3c89efd9082cfdcdf4e6c3db3c272d9149009835": {
+      "asset": "admin/css/login.css",
+      "versions": [
+        "4.2.11",
+        "5.0.6"
+      ]
+    },
+    "872dddfd6f5811561a01236062bc59bc55f955becc486c00d3e6a3fc59cb063c": {
+      "asset": "admin/css/nav_sidebar.css",
+      "versions": [
+        "4.2.11"
+      ]
+    },
+    "379029235e57e4b1f9d8482fa01cc4c6a103c58ea9035cc0dd7e6f020a199efb": {
+      "asset": "admin/css/base.css",
+      "versions": [
+        "5.0.6"
+      ]
+    },
+    "e309816f9b554f9fdf7273ff52d4b5ea36a5d108aa80e2aaff2cf5eb61ebfc2e": {
+      "asset": "admin/css/nav_sidebar.css",
+      "versions": [
+        "5.0.6",
+        "5.1.6"
+      ]
+    },
+    "44eee43095b6acb15b77e0fdc98f06af057e0a8d95f571416a33404b9f763a57": {
+      "asset": "admin/css/base.css",
+      "versions": [
+        "5.1.6"
+      ]
+    },
+    "7fc95b6507405add6b19dbcdac87f591c8903d5701257e336077fcd49aea5e72": {
+      "asset": "admin/css/login.css",
+      "versions": [
+        "5.1.6"
+      ]
+    }
+  }
+}

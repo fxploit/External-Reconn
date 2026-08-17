@@ -1,0 +1,46 @@
+{
+  "product": "Vue",
+  "signatures": [
+    {
+      "id": "vue-version-banner",
+      "asset_kinds": ["js"],
+      "match": {
+        "type": "regex",
+        "pattern": "Vue\\.js\\s+v(?P<version>[0-9]+\\.[0-9]+\\.[0-9]+)"
+      },
+      "implies": { "provenance": "confirmed" },
+      "note": "vue.js 배너 주석의 정확 버전 — 원본에 실재하므로 confirmed"
+    },
+    {
+      "id": "vue-version-property",
+      "asset_kinds": ["js"],
+      "match": {
+        "type": "regex",
+        "pattern": "Vue\\.version\\s*=\\s*[\"'](?P<version>[0-9]+\\.[0-9]+\\.[0-9]+)[\"']"
+      },
+      "implies": { "provenance": "confirmed" },
+      "note": "Vue.version 프로퍼티 대입 — 정확 버전 캡처"
+    },
+    {
+      "id": "vue-3-createApp",
+      "asset_kinds": ["js"],
+      "match": { "type": "regex", "pattern": "createApp\\s*\\([^)]*\\)\\s*\\.mount\\s*\\(" },
+      "implies": { "version_bound": ">=3", "provenance": "inferred" },
+      "note": "createApp().mount() 관용구 — Vue 3 컴포지션 API 진입점"
+    },
+    {
+      "id": "vue-2-newVue",
+      "asset_kinds": ["js"],
+      "match": { "type": "regex", "pattern": "new\\s+Vue\\s*\\(\\s*\\{" },
+      "implies": { "version_bound": "2-2.7", "provenance": "inferred" },
+      "note": "new Vue({}) 옵션 API — Vue 2 스타일 진입점"
+    },
+    {
+      "id": "vue-scoped-data",
+      "asset_kinds": ["html"],
+      "match": { "type": "regex", "pattern": "data-v-[a-f0-9]{8}" },
+      "implies": { "provenance": "guess" },
+      "note": "Vue SFC scoped 스타일 컴파일 해시 속성 — Vue 존재는 확인되나 버전 불명"
+    }
+  ]
+}
