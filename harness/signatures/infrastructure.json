@@ -1,0 +1,26 @@
+{
+  "product": "infrastructure",
+  "signatures": [
+    {
+      "id": "via-proxy",
+      "asset_kinds": ["header"],
+      "match": { "type": "regex", "pattern": "^Via:\\s*[^\\r\\n]+" },
+      "implies": { "provenance": "inferred" },
+      "note": "Via 헤더 존재는 프록시 계층의 단서이며 제품/버전은 확정하지 않음"
+    },
+    {
+      "id": "cache-header",
+      "asset_kinds": ["header"],
+      "match": { "type": "regex", "pattern": "^(?:X-Cache|X-Served-By|Server-Timing):\\s*[^\\r\\n]+" },
+      "implies": { "provenance": "inferred" },
+      "note": "캐시/LB 계층 헤더의 존재만 근거로 기록"
+    },
+    {
+      "id": "forwarded-header",
+      "asset_kinds": ["header"],
+      "match": { "type": "regex", "pattern": "^X-Forwarded-(?:For|Host|Proto):\\s*[^\\r\\n]+" },
+      "implies": { "provenance": "inferred" },
+      "note": "리버스 프록시 전달 헤더의 존재만 기록"
+    }
+  ]
+}

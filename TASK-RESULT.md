@@ -441,3 +441,58 @@
 21. **CDN/WAF 복수 탐지 해석**: Cloudflare 앞단은 cf-ray(CDN)와 __cf_bm(WAF)이 같이 잡히는 등 겹침이 자연스럽다 —
     복수 confirmed 는 오류가 아니라 적층 방어다. 순수 패시브 IDS 는 `unknown`(지어내지 않음).
 22. **scope.md 에 127.0.0.1/8 재추가**: 로컬 픽스처(waf_server 등) 검증용. (배포 시 scope.md 는 UNSET 으로 초기화.)
+
+---
+
+## Phase 6 추가 수행 결과 (T23~T28)
+
+### T23. 내부 IP 오탐 신뢰도 등급화 (완료)
+
+- `extract_assets.py`가 내부 IP 발견에 `confidence`를 추가한다. semver 인접 또는 vendor 문맥은
+  `guess`, 일반 문맥은 `inferred`이며, IP 문자열의 존재 자체는 기존처럼 `confirmed`로 유지한다.
+- `0.0.0.0`, `127.0.0.1`, `192.168.0.1`, `192.168.1.1`은 `ip_noise`, 대상 IP와 동일하면
+  `self_reference`로 태깅한다. 원문 Observation은 삭제하지 않는다.
+
+### T24. 주석 민감도 분류 (완료)
+
+- HTML/JS/CSS/메타파일 주석에 TODO/FIXME/HACK, internal-host, credential-ish,
+  legacy-endpoint 태그를 부여한다.
+- 주석에 시크릿 패턴이 있으면 findings의 인용은 시크릿 앞의 바이트 결속 가능한 안전한 발췌로
+  제한하고 `evidence_quote_masked`를 별도 제공한다. `report_eligible=false`는 유지한다.
+
+### T25. sitemap/robots 후보 관찰물 (완료)
+
+- `scripts/parse_metafiles.py`를 추가했다. 이미 수집된 `metafile`만 읽으며 robots의 Allow/Disallow와
+  sitemap `<loc>`/중첩 sitemap 후보를 `captures/observation/candidate-paths.txt`에 기록하고 네트워크
+  요청은 하지 않는다.
+- `active_recon.py --candidate-paths`를 추가했다. `--approved`와 scope 검사를 통과한 경우에만
+  후보를 fetch하며, 외부 URL은 `STOP_EXTERNAL_NOT_FETCHED`로 관찰만 보존한다. 접근 결과는
+  `asset_kind:path`, `product/version=UNSET`, `http_status`로 기록한다.
+
+### T26. security.txt 연락처 마스킹 (완료)
+
+- `Contact:` 이메일을 추출하되 findings/Observation에는 `a***@domain` 형태만 기록한다.
+- 원본 이메일은 기존 raw 자산에만 남고, finding의 evidence는 raw에 실제 존재하는 `Contact:`로
+  바이트 바인딩한다.
+
+### T28. 인프라 헤더 지문 (부분 완료)
+
+- `harness/signatures/infrastructure.json`에 Via, X-Cache/X-Served-By/Server-Timing,
+  X-Forwarded-* 데이터 시그니처를 추가했다. 제품/버전은 단정하지 않고 `inferred`로 둔다.
+- favicon 해시는 실제 제품 자산을 외부에서 실측해야 하므로 날조하지 않고 보류했다. INFO-06 진입점
+  목록화도 범위 결정 전이므로 보류했다.
+
+### T27. 경계 정책 (사람 승인 대기)
+
+- `AGENTS.md`와 `harness/policies/invariants.md`는 신뢰 앵커이므로 수정하지 않았다. semi-passive
+  분류를 계약에 반영하려면 사람 승인 후 별도 변경이 필요하다.
+- `collect_web.py` manifest에 계획된 메타파일 수와 실제 `request_budget.actual_requests`를 기록했다.
+
+### 검증
+
+- `python -m py_compile scripts/extract_assets.py scripts/parse_metafiles.py scripts/active_recon.py scripts/collect_web.py` 통과.
+- `python tests/test_python.py` 통과: **34 passed**.
+- `npm test`는 로컬 scope를 임시로 `127.0.0.1/8`로 둔 상태에서 Node **19 passed / 1 failed**.
+  실패 1건은 기존 T11 Django 정적 해시 픽스처의 `Django confirmed 필요`이며 이번 변경과 무관하다.
+- `git diff --check`는 줄바꿈 형식 경고만 출력했고 whitespace 오류는 없었다.
+- 검증 후 `scope.md`는 `허용 대역: UNSET`으로 복원했다. CTF 당일 실제 대역을 사람 입력해야 한다.

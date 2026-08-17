@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""자산 기반 추출 패스 — 시크릿·엔드포인트·에러/스택트레이스 (T15).
+"""자산 기반 추출 패스 — 시크릿·엔드포인트·에러/스택트레이스·주석·내부IP (T15, WSTG-INFO-05).
 
 이미 수집·정규화한 자산(js/css/html)에서 결정론적 regex 로 고가치 문자열을 뽑는다.
 cariddi 가 하는 일의 파이썬 폴백이자 독립 도구. 컨테이너에 cariddi 바이너리가 있으면
@@ -25,7 +25,98 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-KINDS = ("js", "css", "html")
+KINDS = ("js", "css", "html", "metafile")
+
+# WSTG-INFO-05: 클라이언트 리소스에 남은 개발자 주석(레거시 엔드포인트·TODO·내부 정보 단서).
+# 존재는 confirmed, '민감한 누출인가'의 해석은 사람 몫(inferred).
+COMMENT_RULES = [
+    {"id": "html-comment", "kinds": ("html", "metafile"), "regex": re.compile(r"<!--(.*?)-->", re.S)},
+    {"id": "block-comment", "kinds": ("js", "css"), "regex": re.compile(r"/\*(.*?)\*/", re.S)},
+]
+# 사설/루프백 IPv4 (RFC1918 + 127/8). 존재는 confirmed, '내부 인프라 주소인가'는 inferred(오탐 가능).
+PRIVATE_IP = re.compile(
+    r"(?<![\w.])("
+    r"10\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+    r"|192\.168\.\d{1,3}\.\d{1,3}"
+    r"|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}"
+    r"|127\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+    r")(?![\w.])"
+)
+IP_NOISE = {"0.0.0.0", "127.0.0.1", "192.168.0.1", "192.168.1.1"}
+COMMENT_TAG_RULES = (
+    ("TODO", re.compile(r"\bTODO\b", re.I)),
+    ("FIXME", re.compile(r"\bFIXME\b", re.I)),
+    ("XXX", re.compile(r"\bXXX\b", re.I)),
+    ("HACK", re.compile(r"\bHACK\b", re.I)),
+    ("internal-host", re.compile(r"(?:\.local\b|\.htb\b|(?:10|127)\.\d|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.)", re.I)),
+    ("credential-ish", re.compile(r"\b(?:password|passwd|api[_-]?key|token|secret)\b", re.I)),
+    ("legacy-endpoint", re.compile(r"(?:/api(?:/|\b)|\.php\b|commented[- ]?out)", re.I)),
+)
+# 주석 잡음 억제: 콘텐츠(양끝 공백 제거)가 이 길이 미만이면 스킵, 자산당 상한.
+COMMENT_MIN_CHARS = 6
+COMMENT_MAX_PER_ASSET = 40
+
+
+def is_private_ipv4(s: str) -> bool:
+    """옥텟 범위(0~255) + RFC1918/루프백 소속을 확정 검증 — 버전 문자열 등 오탐 축소.
+    PRIVATE_IP 정규식과 이중 검증(정규식이 느슨해도 여기서 최종 확정)."""
+    parts = s.split(".")
+    if len(parts) != 4:
+        return False
+    try:
+        o = [int(p) for p in parts]
+    except ValueError:
+        return False
+    if not all(0 <= p <= 255 for p in o):
+        return False
+    return (
+        o[0] == 10
+        or (o[0] == 192 and o[1] == 168)
+        or (o[0] == 172 and 16 <= o[1] <= 31)
+        or o[0] == 127
+    )
+
+
+def byte_quote(candidate: str, data: bytes, maxlen: int = 160):
+    """evidence_quote 는 원본 자산 바이트에 실재해야 한다(게이트 재검증과 동일 규율).
+    후보 접두사의 UTF-8 바이트가 파일에 있으면 그대로, 없으면(cp949 등 인코딩 불일치)
+    자산 바이트에 실재하는 ASCII 런으로 대체한다. 못 찾으면 None(바인딩 불가 → 스킵)."""
+    q = candidate[:maxlen].strip()
+    if q and q.encode("utf-8") in data:
+        return q
+    for run in re.findall(r"[\x20-\x7e]{6,}", candidate):
+        rq = run[:maxlen].strip()
+        if rq and rq.encode("utf-8") in data:
+            return rq
+    return None
+
+
+def comment_tags(content: str):
+    return [name for name, rule in COMMENT_TAG_RULES if rule.search(content)]
+
+
+def ip_context(text: str, start: int, end: int, asset_kind: str, ip: str):
+    context = text[max(0, start - 32):min(len(text), end + 32)]
+    semver_adjacent = bool(re.search(r"(?<![\d.])\d+\.\d+\.\d+(?![\d.])", context))
+    vendor_asset = asset_kind in ("js", "css") and bool(re.search(r"(?:react|vue|angular|vendor|webpack|jquery)", context, re.I))
+    noise = ip in IP_NOISE
+    if semver_adjacent or vendor_asset:
+        confidence = "guess"
+    else:
+        confidence = "inferred"
+    return confidence, noise
+
+
+def masked_comment_quote(content: str, data: bytes):
+    """Return a byte-bound safe excerpt; never put a detected secret in findings."""
+    safe = content
+    for rule in SECRET_RULES:
+        safe = rule["regex"].sub(lambda m: m.group(0)[:4] + "...", safe)
+    # A masked string is not present in the raw asset, so bind an excerpt that
+    # ends before the first secret. The full masked value remains metadata only.
+    first_secret = min((m.start() for r in SECRET_RULES for m in r["regex"].finditer(content)), default=len(content))
+    prefix = content[:first_secret].strip() or "comment"
+    return byte_quote(prefix, data) or byte_quote("comment", data)
 
 SECRET_RULES = [
     {"id": "aws-access-key", "prefix": "AKIA",
@@ -203,6 +294,7 @@ def main() -> int:
     ap.add_argument("target", help="host label (targets/<host>/)")
     ap.add_argument("--cariddi", action="store_true", help="컨테이너의 cariddi 가 있으면 사용")
     args = ap.parse_args()
+    target_ip = args.target if re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", args.target) else ""
 
     fpath = os.path.join(ROOT, "targets", args.target, "findings.json")
     if not os.path.exists(fpath):
@@ -219,7 +311,8 @@ def main() -> int:
 
     findings = doc.get("findings", [])
     existing = {(f.get("evidence_path"), f.get("evidence_quote")) for f in findings}
-    obs = {"secrets": [], "endpoints": [], "errors": [], "assets_scanned": 0}
+    obs = {"secrets": [], "endpoints": [], "errors": [],
+           "comments": [], "internal_ips": [], "assets_scanned": 0}
 
     def add(finding, obs_kind, obs_entry):
         key = (finding["evidence_path"], finding["evidence_quote"])
@@ -290,6 +383,95 @@ def main() -> int:
                     "endpoint": ep,
                 }, "endpoints", obs_entry)
 
+        # ── WSTG-INFO-05: 개발자 주석 (존재 confirmed, 누출 해석은 inferred/사람) ──
+        for rule in COMMENT_RULES:
+            if kind not in rule["kinds"]:
+                continue
+            hits = 0
+            for m in rule["regex"].finditer(text):
+                content = (m.group(1) or "").strip()
+                if len(content) < COMMENT_MIN_CHARS:
+                    continue
+                quote = masked_comment_quote(content, data)
+                if quote is None:
+                    continue  # 자산 바이트에 실재 근거를 못 만들면 스킵(환각 방지)
+                hits += 1
+                if hits > COMMENT_MAX_PER_ASSET:
+                    break
+                tags = comment_tags(content)
+                obs_entry = {"rule": rule["id"], "asset": raw_ref, "comment": content[:400], "comment_tags": tags}
+                add({
+                    "asset_kind": "comment",
+                    "product": "comment:" + rule["id"],
+                    "version": "unknown",
+                    "version_bound": "UNSET",
+                    "provenance": "confirmed",
+                    "evidence_path": raw_ref,
+                    "evidence_quote": quote,
+                    "evidence_quote_masked": re.sub(r"\S*(?:password|token|secret|api[_-]?key)\S*", "[REDACTED]", content, flags=re.I)[:160],
+                    "asset_sha256": sha,
+                    "reasoning": (f"extract_assets: {rule['id']} 주석이 자산에 실재(confirmed) — "
+                                  f"민감정보 누출 여부는 사람 검토(inferred)"),
+                    "verified_by": ["extract_assets.py:" + rule["id"]],
+                    "comment_tags": tags,
+                    "report_eligible": False,
+                }, "comments", obs_entry)
+
+        # ── WSTG-INFO-05: 내부/사설 IP 노출 (존재 confirmed, 내부 인프라 해석은 inferred) ──
+        seen_ips = set()
+        for m in PRIVATE_IP.finditer(text):
+            ip = m.group(1)
+            if ip in seen_ips or not is_private_ipv4(ip):
+                continue
+            quote = byte_quote(ip, data)
+            if quote is None:
+                continue
+            seen_ips.add(ip)
+            confidence, ip_noise = ip_context(text, m.start(), m.end(), kind, ip)
+            self_ref = bool(target_ip and target_ip == ip)
+            obs_entry = {"asset": raw_ref, "ip": ip, "confidence": confidence,
+                         "ip_noise": ip_noise, "self_reference": self_ref}
+            add({
+                "asset_kind": "internal-ip",
+                "product": "internal-ip",
+                "version": "unknown",
+                "version_bound": "UNSET",
+                "provenance": "confirmed",
+                "evidence_path": raw_ref,
+                "evidence_quote": quote,
+                "asset_sha256": sha,
+                "reasoning": (f"extract_assets: 사설/루프백 IP '{ip}' 문자열이 자산에 실재(confirmed) — "
+                               f"내부 인프라 가능성 confidence={confidence}; 문맥 기반이며 존재 자체와 분리"),
+                "verified_by": ["extract_assets.py:internal-ip"],
+                "confidence": confidence,
+                "ip_noise": ip_noise,
+                "self_reference": self_ref,
+                "report_eligible": False,
+            }, "internal_ips", obs_entry)
+
+        # security.txt 연락처는 공개 목적이어도 report/findings에는 마스킹한다.
+        if kind == "metafile" and re.search(r"(?:^|\n)\s*Contact\s*:", text, re.I):
+            for cm in re.finditer(r"(?im)^\s*Contact\s*:\s*<?([^\s>]+@[^\s>]+)>?", text):
+                email = cm.group(1)
+                local, domain = email.split("@", 1)
+                masked = (local[:1] + "***@" + domain) if local else "***@" + domain
+                q = byte_quote("Contact:", data)
+                if q:
+                    add({
+                        "asset_kind": "contact",
+                        "product": "security.txt-contact",
+                        "version": "unknown",
+                        "version_bound": "UNSET",
+                        "provenance": "confirmed",
+                        "evidence_path": raw_ref,
+                        "evidence_quote": q,
+                        "asset_sha256": sha,
+                        "reasoning": "security.txt Contact 필드 존재; PII는 마스킹하여 보고",
+                        "verified_by": ["extract_assets.py:security-contact"],
+                        "contact_masked": masked,
+                        "report_eligible": False,
+                    }, "comments", {"rule": "security-contact", "asset": raw_ref, "contact_masked": masked})
+
         # ── 에러/스택트레이스·버전 문자열 (존재 confirmed) ───────────────────
         for rule in ERROR_RULES:
             for m in rule["regex"].finditer(text):
@@ -326,7 +508,8 @@ def main() -> int:
             json.dump(doc, f, indent=2, ensure_ascii=False)
 
     print(f"[*] 자산 스캔 {obs['assets_scanned']}건 / 시크릿 {len(obs['secrets'])} · "
-          f"엔드포인트 {len(obs['endpoints'])} · 에러 {len(obs['errors'])}"
+          f"엔드포인트 {len(obs['endpoints'])} · 에러 {len(obs['errors'])} · "
+          f"주석 {len(obs['comments'])} · 내부IP {len(obs['internal_ips'])}"
           + (f" · cariddi {n_cariddi}" if args.cariddi else ""))
     print(f"[*] 시크릿 원문(gitignore): {os.path.relpath(obs_path, ROOT)}")
     print("[*] 게이트 확인: npm run check -- " + args.target)

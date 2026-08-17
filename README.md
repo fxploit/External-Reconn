@@ -241,6 +241,8 @@ docker compose -f docker/compose.yaml down
 | **헤더·쿠키 1급 매칭 자산 (정적·SPA)** | ✅ 동작 (T9) |
 | **버전 범위/해시 DB (Werkzeug→Flask, Django admin 해시)** | ✅ 동작 (T11) |
 | **자산 추출 (시크릿 마스킹·엔드포인트·에러버전, cariddi 통합)** | ✅ 동작 (T15) |
+| **메타파일 패시브 수집 (robots/sitemap/security.txt/humans, WSTG-INFO-03)** | ✅ 동작 |
+| **주석·내부IP 추출 (개발자 주석·RFC1918/루프백, WSTG-INFO-05)** | ✅ 동작 |
 | 스코프 제한 크롤 (`--depth N`, 외부 미크롤) | ✅ 동작 (T16) |
 | 서브도메인·DNS 발견 (passive + 능동·GO) | ✅ 동작 (T17) |
 | AWS 인프라 정찰 (S3 공개·메타데이터 신호) | ✅ 동작 (T14) |
@@ -250,6 +252,13 @@ docker compose -f docker/compose.yaml down
 | JS 딥 디오브푸스케이션 (string-array·인코딩블롭·source map) + 임베디드 정보 추출 | ✅ 동작 (T21) |
 | 경계 방어 탐지 (WAF/CDN 패시브·IPS/레이트리밋 능동·IDS unknown) | ✅ 동작 (T22) |
 | 운영 보강 (워드리스트 마운트, 배너 파싱 정밀화) | ✅ 동작 (T13) |
+| 내부 IP 문맥 신뢰도·노이즈 태깅 | ✅ 동작 (T23) |
+| 주석 민감도 태깅·안전 인용·security.txt 연락처 마스킹 | ✅ 동작 (T24·T26) |
+| robots/sitemap 후보 파싱 + GO-gated fetch | ✅ 동작 (T25) |
+| 인프라 헤더 지문(Via/X-Cache/X-Forwarded/Server-Timing) | ✅ 동작 (T28) |
+| favicon 해시 DB | ⏸ 실측 제품 자산 소싱 대기 (T28) |
+| INFO-06 진입점 목록화 | ⏸ 범위 결정 대기 (T28) |
+| semi-passive 경계 신뢰 앵커 반영 | ⏸ 사람 승인 대기 (T27) |
 | 라이브 SPA 검증 + 의존성 고정 (requirements.txt) | ✅ 동작 (T7) |
 | 테스트·회귀 방지 (`npm test`) | ✅ 동작 (T8) |
 
@@ -264,15 +273,5 @@ docker compose -f docker/compose.yaml down
   `docker compose down` + 잔여 테스트 타깃 제거.
 - **AWS 공인 접근**: `aws_recon.py --s3-buckets` 는 공인 AWS 엔드포인트를 건드리므로
   `--approved-for-public`(사람 허용) 필수. CTF 허용 범위만.
-| 헤더·쿠키를 1급 매칭 자산으로 (서버사이드 substrate) | ⬜ Phase 2 (T9) |
-| Flask/Django + 서버사이드 쿠키·기본자산 시그니처 | ⬜ Phase 2 (T10) |
-| 관용구·산출물 → 버전 범위 깊이 확장 (React 외) | ⬜ Phase 2 (T11) |
-| 서버사이드 능동 프로브 지문 (/admin, DEBUG 등, GO) | ⬜ Phase 2 (T12) |
-| 능동 도구 운영 보강 (워드리스트·SNI·배너 파싱) | ⬜ Phase 2 (T13) |
-| AWS 인프라 정찰 (S3·메타데이터 신호) | ⬜ Phase 2 (T14) |
-| 자산 추출: 시크릿·엔드포인트·에러버전 (cariddi 통합) | ⬜ Phase 2 (T15) |
-| 스코프 제한 크롤 (depth 링크 발견) | ⬜ Phase 2 (T16) |
-| 서브도메인·DNS 발견 (passive+active) | ⬜ Phase 2 (T17) |
-
-> Phase 2 상세 지시는 [TASK.md](TASK.md). 현재 헤더 지문은 정적 수집 전용이고 쿠키는 매칭 표면에
-> 없어(서버사이드 커버리지 제한), T9가 이를 1급 자산으로 올린다.
+> Phase 6의 T27(semi-passive 정책)과 T28의 favicon/INFO-06은 사람 결정 또는 실측 자산이 필요한
+> 항목이라 자동 완료하지 않는다. 상세 지시는 [TASK.md](TASK.md)를 참조한다.
