@@ -16,7 +16,8 @@
 // - Docker 를 쓸 수 없으면 호스트에서 직접 실행하는 폴백을 유지한다
 //   (기존 `python scripts/...` 경로와 동일하게 동작).
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
@@ -29,6 +30,53 @@ function run(cmd, args, opts = {}) {
   const res = spawnSync(cmd, args, { encoding: "utf8", ...opts });
   if (res.stdout) process.stdout.write(res.stdout);
   if (res.stderr) process.stderr.write(res.stderr);
+  return res.status;
+}
+
+function sha256(buffer) {
+  return createHash("sha256").update(buffer).digest("hex");
+}
+
+function journalPaths(host, stamp) {
+  const base = host
+    ? resolve(root, "targets", host, "captures", "observation", "run-log")
+    : resolve(root, "run-log");
+  mkdirSync(base, { recursive: true });
+  return {
+    base,
+    out: resolve(base, `${stamp}.out.txt`),
+    err: resolve(base, `${stamp}.err.txt`),
+    journal: resolve(base, "command-log.jsonl"),
+  };
+}
+
+function executeLogged(command, args, { host = null, environment, digest = null } = {}) {
+  const started = new Date();
+  const stamp = started.toISOString().replace(/[-:.TZ]/g, "") + `-${process.pid}`;
+  const paths = journalPaths(host, stamp);
+  const res = spawnSync(command, args, { ...{}, encoding: "buffer" });
+  const stdout = Buffer.isBuffer(res.stdout) ? res.stdout : Buffer.from(res.stdout || "");
+  const stderr = Buffer.isBuffer(res.stderr) ? res.stderr : Buffer.from(res.stderr || "");
+  writeFileSync(paths.out, stdout);
+  writeFileSync(paths.err, stderr);
+  const ended = new Date();
+  const record = {
+    timestamp_start: started.toISOString(),
+    timestamp_end: ended.toISOString(),
+    command: [command, ...args],
+    target: host,
+    environment,
+    runtime_image_digest: digest,
+    exit_code: res.status ?? null,
+    signal: res.signal ?? null,
+    stdout_ref: paths.out.replace(root + "\\", "").replaceAll("\\", "/"),
+    stderr_ref: paths.err.replace(root + "\\", "").replaceAll("\\", "/"),
+    stdout_sha256: sha256(stdout),
+    stderr_sha256: sha256(stderr),
+  };
+  appendFileSync(paths.journal, JSON.stringify(record) + "\n", "utf8");
+  if (stdout.length) process.stdout.write(stdout);
+  if (stderr.length) process.stderr.write(stderr);
   return res.status;
 }
 
@@ -89,10 +137,14 @@ function main() {
     process.exit(2);
   }
 
-  if (!dockerAvailable()) {
+  if (process.env.RECON_FORCE_LOCAL === "1" || !dockerAvailable()) {
     // 로컬 직접 실행 폴백 — Docker 미사용 시 기존 경로와 동일하게 동작.
     console.warn("[recon] Docker 를 쓸 수 없어 호스트에서 직접 실행합니다(폴백).");
-    process.exit(run(cmdArgs[0], cmdArgs.slice(1)));
+    process.exit(executeLogged(cmdArgs[0], cmdArgs.slice(1), {
+      host,
+      environment: "host-fallback",
+      digest: null,
+    }) ?? 1);
   }
 
   if (!containerRunning()) {
@@ -108,7 +160,12 @@ function main() {
     }
   }
 
-  const status = run("docker", ["exec", container, ...cmdArgs]);
+  const digest = runningImageDigest();
+  const status = executeLogged("docker", ["exec", container, ...cmdArgs], {
+    host,
+    environment: "container",
+    digest,
+  });
   if (host) recordRuntimeDigest(host);
   process.exit(status ?? 1);
 }

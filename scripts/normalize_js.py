@@ -18,6 +18,9 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+import sys as _sys
+_sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from lib.engagement import append_event  # noqa: E402
 
 try:
     import jsbeautifier  # type: ignore
@@ -152,6 +155,9 @@ def main() -> int:
     print(f"\n[*] normalized {n_done} JS asset(s), {n_unpacked} unpacked (beautifier: {beautifier})")
     if not _HAS_JSB:
         print("[i] `pip install jsbeautifier` 하면 더 정확한 정규화가 됩니다.")
+    append_event(args.target, {"event": "normalize", "produced_by": "normalize_js.py",
+                               "manifest_ref": os.path.relpath(mpath, ROOT).replace("\\", "/"),
+                               "normalized_count": n_done})
     return 0
 
 

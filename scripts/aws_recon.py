@@ -24,6 +24,9 @@ import sys
 from urllib.parse import urlparse
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+import sys as _sys
+_sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from lib.engagement import stamp_findings  # noqa: E402
 
 
 def _utf8_stdio():
@@ -160,6 +163,7 @@ def main() -> int:
         print(f"[*] S3 후보 {len(results)}건, 공개 {sum(1 for r in results if r['public_listing'])}건")
         print(f"[*] Observation: {os.path.relpath(obs_path, ROOT)}")
 
+    stamp_findings(findings, "aws_recon.py")
     with open(fpath, "w", encoding="utf-8") as f:
         json.dump(doc, f, indent=2, ensure_ascii=False)
     print("[*] 게이트 확인: npm run check -- " + args.target)

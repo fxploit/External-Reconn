@@ -71,6 +71,8 @@ CVE 번호·영향 버전·익스 존재 여부를 **기억에서 서술하지 �
 - 요청, 응답 헤더, 원본 자산(JS/CSS/쿠키), 정규화 산출물, 도구 stdout/stderr/exit code를 보존한다.
 - 실패·미매칭·UNKNOWN을 삭제하지 않는다.
 - 원본 자산은 `captures/raw/`에 두고 `asset_sha256`으로 무결성을 고정한다. 이 값은 실제 파일에서 재계산 가능해야 한다(형식만 맞는 해시 = fabricated → Gate REVISE).
+- **실행한 명령과 그 결과를 저널로 남긴다.** Docker 래퍼(`recon.mjs`)를 통과하는 모든 명령은 명령어·exit code·`runtime_image_digest`·stdout/stderr(파일+sha256)를 `captures/observation/run-log/`에 보존한다(T30). "무슨 명령을 어느 이미지에서 무슨 결과로 돌렸나"의 원본 감사 추적이다.
+- **교전 감사 추적(engagement audit trail)을 남긴다.** 이 과제는 실질적으로 모의 레드팀 교전이며, 보고서의 뼈대는 전 과정 기록이다(T31·T32). 따라서: ① 모든 finding에 발견 시각(`discovered_at`)을 기록하고, ② 능동 정찰의 `GO <recon_id>` 승인을 이벤트(recon_id·시각·범위)로 저널링하며, ③ 시간순 이벤트를 `engagement-log.jsonl`에 **append-only(쌓임)**로 남긴다. 이벤트는 명령 저널·observation·finding을 ref로 링크할 뿐 새 주장을 만들지 않는다. 보고서는 이 검증된 데이터의 **렌더링**이지 AI 서술 생성이 아니다(모든 FACT는 evidence ref 인용).
 
 ## 스크립트 자가개선 (self-repair)
 

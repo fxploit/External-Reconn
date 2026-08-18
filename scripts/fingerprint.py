@@ -23,6 +23,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SIG_DIR = os.path.join(ROOT, "harness", "signatures")
+from lib.engagement import append_event, stamp_findings  # noqa: E402
 
 
 def load_signatures():
@@ -427,7 +428,10 @@ def main() -> int:
 
     n_wf = apply_werkzeug_flask_map(findings)
     n_dj = apply_django_hash_db(manifest, findings)
+    stamp_findings(findings, "fingerprint.py")
     findings, unmatched = merge_idempotent(existing, findings, unmatched)
+    # 기존 외부 발견도 구버전 산출물 마이그레이션 시각을 보완해 타임라인에서 누락되지 않게 한다.
+    stamp_findings(findings, "fingerprint.py")
 
     out = {
         "target": args.target,
@@ -438,6 +442,12 @@ def main() -> int:
     }
     with open(fpath, "w", encoding="utf-8") as f:
         json.dump(out, f, indent=2, ensure_ascii=False)
+    append_event(args.target, {
+        "event": "fingerprint",
+        "produced_by": "fingerprint.py",
+        "findings_ref": f"targets/{args.target}/findings.json",
+        "finding_ids": [f.get("finding_id") for f in findings],
+    })
 
     conf = sum(1 for x in findings if x["provenance"] == "confirmed")
     inf = sum(1 for x in findings if x["provenance"] == "inferred")

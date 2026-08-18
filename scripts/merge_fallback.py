@@ -19,6 +19,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ALLOWED = {"inferred", "guess", "unknown"}
+from lib.engagement import append_event, stamp_findings  # noqa: E402
 
 
 def sha256_hex(data: bytes) -> str:
@@ -137,11 +138,14 @@ def main() -> int:
 
     # unmatched 재구성: unknown 은 유지, 병합된 항목은 제거, 거부 항목은 유지(단 병합된 항목 제외)
     kept_ids = (set(kept_unknown) | set(r.get("asset_id") for r in rejected)) - merged_ids
+    stamp_findings(findings, "merge_fallback.py")
     doc["unmatched"] = [u for u in unmatched if u.get("asset_id") in kept_ids]
     doc["findings"] = findings
 
     with open(fpath, "w", encoding="utf-8") as f:
         json.dump(doc, f, indent=2, ensure_ascii=False)
+    append_event(args.target, {"event": "merge_fallback", "produced_by": "merge_fallback.py",
+                               "findings_ref": f"targets/{args.target}/findings.json"})
 
     print(f"[*] merged={len(findings)} total findings, unmatched={len(doc['unmatched'])}")
     if kept_unknown:

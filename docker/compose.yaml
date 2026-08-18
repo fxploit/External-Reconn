@@ -17,7 +17,7 @@
 services:
   recon:
     # docker images --no-trunc --format '{{.ID}}' recon-harness 로 확보한 digest 로 고정
-    image: recon-harness@sha256:71c3d56af39c0db51152640ce8b5a4eba3e41161291a3e6fa3ca1c5be557b896
+    image: recon-harness@sha256:61b44b534a451ac06f06e31ff1d600740f58c126579bf6588e3e4c968810e559
     container_name: recon
     working_dir: /work
     volumes:

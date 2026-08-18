@@ -26,6 +26,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 KINDS = ("js", "css", "html", "metafile")
+from lib.engagement import append_event, stamp_findings  # noqa: E402
 
 # WSTG-INFO-05: 클라이언트 리소스에 남은 개발자 주석(레거시 엔드포인트·TODO·내부 정보 단서).
 # 존재는 confirmed, '민감한 누출인가'의 해석은 사람 몫(inferred).
@@ -497,6 +498,7 @@ def main() -> int:
     with open(obs_path, "w", encoding="utf-8") as f:
         json.dump(obs, f, indent=2, ensure_ascii=False)
 
+    stamp_findings(findings, "extract_assets.py")
     doc["findings"] = findings
     with open(fpath, "w", encoding="utf-8") as f:
         json.dump(doc, f, indent=2, ensure_ascii=False)
@@ -506,6 +508,11 @@ def main() -> int:
         n_cariddi = run_cariddi(args.target, manifest, findings, existing)
         with open(fpath, "w", encoding="utf-8") as f:
             json.dump(doc, f, indent=2, ensure_ascii=False)
+    append_event(args.target, {
+        "event": "extract_assets",
+        "produced_by": "extract_assets.py",
+        "findings_ref": f"targets/{args.target}/findings.json",
+    })
 
     print(f"[*] 자산 스캔 {obs['assets_scanned']}건 / 시크릿 {len(obs['secrets'])} · "
           f"엔드포인트 {len(obs['endpoints'])} · 에러 {len(obs['errors'])} · "

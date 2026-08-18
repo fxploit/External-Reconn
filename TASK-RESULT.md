@@ -266,6 +266,20 @@
 
 ---
 
+# Phase 7 (T29) 수행 결과
+
+## T29. 통합 테스트 scope 격리 (완료)
+
+- 기존 결함: `tests/integration.test.mjs`의 `gate()`가 repo 루트의 `scope.md`를 직접 읽어,
+  공개 기본값 `허용 대역: UNSET`인 새 clone에서 GO 테스트가 REVISE로 실패했다.
+- 수정: 테스트 `gate()`가 임시 디렉터리를 만들고, 대상 워크스페이스를 복사한 뒤 테스트 전용
+  `scope.md`(`127.0.0.1/8`)를 주입한다. 실제 `checkTarget()`/`classifyDecision()` 로직은 그대로
+  사용하며 신뢰 앵커나 repo `scope.md`는 변경하지 않는다.
+- 검증: repo `scope.md`가 `UNSET`인 상태에서 `npm test` 통과 — **Node 20개 + Python 34개**.
+- scope 동작 자체(GO/REVISE/STOP)는 기존 격리 게이트 테스트에서 계속 검증된다.
+
+---
+
 # Phase 4 (T21) 수행 결과
 
 ## T21. 난독화 JS 심층 해석 — 숨은 정보 수집 (완료)
@@ -441,6 +455,61 @@
 21. **CDN/WAF 복수 탐지 해석**: Cloudflare 앞단은 cf-ray(CDN)와 __cf_bm(WAF)이 같이 잡히는 등 겹침이 자연스럽다 —
     복수 confirmed 는 오류가 아니라 적층 방어다. 순수 패시브 IDS 는 `unknown`(지어내지 않음).
 22. **scope.md 에 127.0.0.1/8 재추가**: 로컬 픽스처(waf_server 등) 검증용. (배포 시 scope.md 는 UNSET 으로 초기화.)
+
+---
+
+# Phase 9 (T31·T32) 수행 결과
+
+## T31. 교전 감사 추적 (완료)
+
+- `scripts/lib/engagement.py` 추가: append-only `engagement-log.jsonl`, `go_approval()`,
+  `stamp_findings()` 공용 헬퍼.
+- collect/normalize/fingerprint/extract/fallback/second-pass/active/DNS/AWS/WAF 생산자에
+  `discovered_at`·`produced_by`를 보강하고 단계 이벤트를 기록한다.
+- 능동 러너의 `--approved` 실행은 `go-approval` 이벤트(recon_id·시각·범위·명령)로 남긴다.
+- T30 `command-log.jsonl`은 상위 타임라인에서 ref로 링크하며 원본 출력을 중복 저장하지 않는다.
+
+## T32. 정찰 보고서 조립 (완료)
+
+- `scripts/build_report.py` 추가.
+- findings.json·manifest.json·engagement-log.jsonl·command-log.jsonl을 읽어 `report.md`를 결정론적으로
+  렌더링한다.
+- provenance별 발견, 범위·승인, 시간순 타임라인, 명령 출력 ref/sha, runtime image digest를 포함한다.
+- AI 서술이나 새 사실을 생성하지 않으며, evidence_path/evidence_quote를 그대로 인용한다.
+- `tests/report.test.mjs`에서 engagement ref와 confirmed 발견의 보고서 조립을 검증했다.
+
+**T31/T32 검증**
+
+- Node 테스트 **22개**, Python 테스트 **34개** 전부 통과.
+- 실제 타깃에 fingerprint 실행 후 `engagement-log.jsonl` 생성과 `build_report.py` → `report.md` 조립 확인.
+- Docker 최종 digest: `sha256:6bbffc0dc5d847ec4798e049486e5c541b5c3b6403856f1f22da5087af1b1e29`.
+
+**Phase 7 추가 오류/교훈**
+23. **통합 테스트가 새 clone에서 대량 REVISE**: 테스트 gate가 repo `scope.md`를 직접 읽는 전역 상태 의존.
+    테스트용 임시 root + scope를 주입하도록 격리해 해결. 운영용 `scope.md`/게이트 규칙은 수정하지 않음.
+
+---
+
+# Phase 8 (T30) 수행 결과
+
+## T30. Docker 래퍼 명령 실행 저널 (완료)
+
+- `scripts/recon.mjs`가 실제 recon 명령마다 원본 stdout/stderr를 **Buffer로 저장**하고 각각 sha256을 계산한다.
+- `targets/<host>/captures/observation/run-log/`에 출력 파일과 `command-log.jsonl`을 기록한다.
+  `--target`이 없으면 repo 루트 `run-log/`를 사용한다.
+- 저널 필드: 전체 command argv(`docker exec recon ...` 포함), target, environment(container/host-fallback),
+  시작·종료 시각, exit code/signal, runtime_image_digest, stdout/stderr ref와 sha256.
+- Docker 미사용 host fallback도 `runtime_image_digest: null`로 기록한다.
+- 출력은 콘솔에도 계속 표시하고, 로그 파일은 observation/gitignore에만 둔다. 현재 실행 방식은
+  `spawnSync` 버퍼 캡처라 실시간 tee가 아니라 명령 종료 후 파일 저장이라는 한계를 주석/문서로 유지한다.
+- 회귀 테스트: `tests/runlog.test.mjs`에서 host fallback을 강제해 stdout/stderr 바이트·sha·exit·환경을 검증.
+- 검증: Node 21개 + Python 34개 전부 통과.
+
+**T30 운영 주의**
+
+- 명령 인자나 stdout에 credential이 들어갈 수 있으므로 run-log는 절대 공개 저장소에 커밋하지 않는다.
+- 컨테이너 실행 시 digest는 실행 중 컨테이너의 실제 이미지 ID이며, 태그 재조회가 아니다.
+- `docker compose up -d` 같은 내부 기동 명령은 콘솔에 보이고, 실제 recon `docker exec` 명령이 target 저널에 남는다.
 
 ---
 

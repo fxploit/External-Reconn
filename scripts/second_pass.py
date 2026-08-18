@@ -23,6 +23,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXCERPT_BYTES = 4000
+from lib.engagement import append_event, stamp_findings  # noqa: E402
 
 
 def _utf8_stdio():
@@ -135,8 +136,11 @@ def apply_verdicts(host, verdicts_path):
             print(f"[!] {fid} 잘못된 verdict: {verdict} (support/contradict/unknown)", file=sys.stderr)
             n_miss += 1
 
+    stamp_findings(doc.get("findings", []), "second_pass.py")
     with open(fpath, "w", encoding="utf-8") as fo:
         json.dump(doc, fo, indent=2, ensure_ascii=False)
+    append_event(host, {"event": "second-pass", "produced_by": "second_pass.py",
+                        "findings_ref": f"targets/{host}/findings.json"})
     print(f"[*] 적용 완료: support={n_support} contradict={n_contradict} unknown={n_unknown} miss={n_miss}")
     print("[*] 게이트 확인: npm run check -- " + host)
     return 0

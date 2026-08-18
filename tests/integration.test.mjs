@@ -3,10 +3,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, rmSync, cpSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve, join } from "node:path";
 import { createHash } from "node:crypto";
+import { checkTarget, classifyDecision } from "../scripts/lib/checks.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
@@ -15,13 +17,22 @@ const PY = process.env.PYTHON || "python";
 function sha256Hex(buf) {
   return createHash("sha256").update(buf).digest("hex");
 }
-function run(cmd, args) {
-  return spawnSync(cmd, args, { cwd: root, encoding: "utf8" });
+function run(cmd, args, options = {}) {
+  return spawnSync(cmd, args, { cwd: root, encoding: "utf8", ...options });
 }
 function gate(host) {
-  const r = run("node", ["scripts/check-recon.mjs", host]);
-  const m = r.stdout.match(/DECISION=(\w+)/);
-  return { decision: m ? m[1] : "?", out: r.stdout };
+  // T29: repo scope.md를 읽지 않고 임시 root에 테스트용 scope를 주입한다.
+  // 실제 checks.mjs 로직은 그대로 사용하고, 전역 scope.md 오염을 피한다.
+  const isolated = mkdtempSync(join(tmpdir(), "recon-integration-gate-"));
+  try {
+    mkdirSync(join(isolated, "targets"), { recursive: true });
+    cpSync(join(root, "targets", host), join(isolated, "targets", host), { recursive: true });
+    writeFileSync(join(isolated, "scope.md"), "허용 대역: 127.0.0.1/8\n", "utf8");
+    const issues = checkTarget(isolated, host);
+    return { decision: classifyDecision(issues), out: issues.join("\n") };
+  } finally {
+    rmSync(isolated, { recursive: true, force: true });
+  }
 }
 function writeJson(p, obj) {
   writeFileSync(p, JSON.stringify(obj, null, 2), "utf8");
@@ -367,6 +378,7 @@ test("T22: WAF/CDN 패시브 탐지 (헤더/쿠키 confirmed) + 게이트 GO", (
 test("T22: waf_recon GO 게이트(STOP) + 능동 프로브로 차단→inferred", async () => {
   const host = "it-" + Date.now();
   let server = null;
+  const scopeFile = join(root, "tests", `${host}-scope.md`);
   try {
     makeTarget(host, { "01_app.js": "/*! jQuery JavaScript Library v3.6.0 */\n" });
     assert.equal(run(PY, ["scripts/fingerprint.py", host]).status, 0, "findings.json 생성");
@@ -376,8 +388,10 @@ test("T22: waf_recon GO 게이트(STOP) + 능동 프로브로 차단→inferred"
     const { spawn } = await import("node:child_process");
     server = spawn(PY, [join(root, "tests/fixtures/waf_server.py")], { stdio: "ignore" });
     await new Promise((r) => setTimeout(r, 1500));
+    writeFileSync(scopeFile, "허용 대역: 127.0.0.1/8\n", "utf8");
     const run2 = run(PY, ["scripts/waf_recon.py", "--url", "http://127.0.0.1:8915/", "--ip", "127.0.0.1",
-      "--target", host, "--recon-id", "R-WAF2", "--approved", "--payloads"]);
+      "--target", host, "--recon-id", "R-WAF2", "--approved", "--payloads"],
+      { env: { ...process.env, RECON_SCOPE_FILE: scopeFile } });
     assert.equal(run2.status, 0, run2.stderr || run2.stdout);
     const doc = readJson(join(root, "targets", host, "findings.json"));
     assert.ok(doc.findings.some((f) => f.product === "waf" && f.provenance === "inferred"),
@@ -385,6 +399,7 @@ test("T22: waf_recon GO 게이트(STOP) + 능동 프로브로 차단→inferred"
     assert.equal(gate(host).decision, "GO", gate(host).out);
   } finally {
     if (server) server.kill();
+    rmSync(scopeFile, { force: true });
     rmSync(join(root, "targets", host), { recursive: true, force: true });
   }
 });

@@ -261,6 +261,10 @@ docker compose -f docker/compose.yaml down
 | semi-passive 경계 신뢰 앵커 반영 | ⏸ 사람 승인 대기 (T27) |
 | 라이브 SPA 검증 + 의존성 고정 (requirements.txt) | ✅ 동작 (T7) |
 | 테스트·회귀 방지 (`npm test`) | ✅ 동작 (T8) |
+| 통합 테스트를 scope.md에서 격리 (UNSET 기본값에서도 통과) | ✅ 동작 (T29) |
+| 명령 실행 저널 (recon.mjs가 명령어·결과·이미지digest·sha 보존) | ✅ 동작 (T30) |
+| 교전 감사 추적 (발견 시각·GO 승인 저널·engagement-log 타임라인) | ✅ 동작 (T31) |
+| 정찰 보고서 조립 (build_report: 범위·방법론·타임라인·증거부록) | ✅ 동작 (T32) |
 
 ## 운영 메모 (T13)
 
@@ -273,5 +277,11 @@ docker compose -f docker/compose.yaml down
   `docker compose down` + 잔여 테스트 타깃 제거.
 - **AWS 공인 접근**: `aws_recon.py --s3-buckets` 는 공인 AWS 엔드포인트를 건드리므로
   `--approved-for-public`(사람 허용) 필수. CTF 허용 범위만.
+
+## 명령 실행 저널 (T30)
+
+`recon.mjs`를 통과한 실제 명령은 target 지정 시 `targets/<host>/captures/observation/run-log/`에
+stdout/stderr 원본과 sha256, `command-log.jsonl`(argv·exit·시각·환경·runtime_image_digest)을 남긴다.
+target이 없으면 repo 루트 `run-log/`에 기록된다. 모두 gitignore 대상이며, host fallback은 digest를 `null`로 기록한다.
 > Phase 6의 T27(semi-passive 정책)과 T28의 favicon/INFO-06은 사람 결정 또는 실측 자산이 필요한
 > 항목이라 자동 완료하지 않는다. 상세 지시는 [TASK.md](TASK.md)를 참조한다.

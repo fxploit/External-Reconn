@@ -33,6 +33,7 @@ from datetime import datetime, timezone
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from collect_web import fetch, now_iso  # noqa: E402
+from lib.engagement import go_approval, stamp_findings  # noqa: E402
 
 DEFAULT_WORDLIST = [
     "admin", "api", "app", "autodiscover", "beta", "blog", "cms", "dashboard",
@@ -130,6 +131,7 @@ def main() -> int:
         print("[STOP] " + args.ip + " 은(는) scope.md 허용 대역 밖입니다. 정찰을 시작하지 않습니다.",
               file=sys.stderr)
         return 3
+    go_approval(args.target, args.recon_id, " ".join(sys.argv), {"ip": args.ip, "domain": args.domain})
 
     candidates = []
     if args.wordlist:

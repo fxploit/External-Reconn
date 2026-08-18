@@ -22,6 +22,8 @@ import sys
 from datetime import datetime, timezone
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from lib.engagement import go_approval, stamp_findings  # noqa: E402
 
 DOMAIN_RE = re.compile(r"(?<![A-Za-z0-9.-])([a-z0-9][a-z0-9-]{0,62}\.)+")
 
@@ -144,7 +146,9 @@ def passive(host, base):
     opath = os.path.join(odir, f"dns-passive-{base}.json")
     with open(opath, "w", encoding="utf-8") as f:
         json.dump(obs, f, indent=2, ensure_ascii=False)
+    stamp_findings(findings, "discover_dns.py:passive")
     doc["findings"] = findings
+    stamp_findings(findings, "discover_dns.py:active")
     with open(fpath, "w", encoding="utf-8") as f:
         json.dump(doc, f, indent=2, ensure_ascii=False)
 
@@ -162,6 +166,7 @@ def active(host, base, recon_id, approved, wordlist):
         print(f"[STOP] 능동 정찰입니다. 사람의 `GO {recon_id}` 승인 후 --approved 로 재실행하세요.",
               file=sys.stderr)
         return 3
+    go_approval(host, recon_id, " ".join(sys.argv), {"base": base})
     candidates = []
     if wordlist and os.path.exists(wordlist):
         with open(wordlist, encoding="utf-8", errors="replace") as f:

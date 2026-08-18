@@ -23,6 +23,7 @@ from html.parser import HTMLParser
 from urllib.parse import urljoin, urlparse
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
+from lib.engagement import append_event  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UA = "recon-harness/0.1 (passive collector)"
@@ -346,6 +347,8 @@ def main() -> int:
         json.dump(manifest, f, indent=2, ensure_ascii=False)
     print(f"\n[*] {len([a for a in manifest['assets'] if a.get('raw_ref')])} assets saved (depth={args.depth})")
     print(f"[*] manifest: {rel(mpath)}")
+    append_event(args.target, {"event": "collect", "produced_by": manifest["produced_by"],
+                               "manifest_ref": rel(mpath), "asset_count": len(manifest["assets"])})
     return 0
 
 

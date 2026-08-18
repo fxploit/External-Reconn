@@ -25,6 +25,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from collect_web import now_iso  # noqa: E402
+from lib.engagement import append_event, go_approval, stamp_findings  # noqa: E402
 
 DEFAULT_DIRS = [
     "admin", "api", "assets", "backup", "config", "console", "css", "data",
@@ -244,6 +245,8 @@ def append_finding(target, finding):
     finding["finding_id"] = f"FND-{fid:03d}"
     finding["report_eligible"] = False
     findings.append(finding)
+    finding.setdefault("discovered_at", now_iso())
+    finding.setdefault("produced_by", "active_recon.py")
     with open(fpath, "w", encoding="utf-8") as f:
         json.dump(doc, f, indent=2, ensure_ascii=False)
     print(f"[+] finding FND-{fid:03d}: {finding['product']} {finding['version']} ({finding['provenance']})")
@@ -419,6 +422,7 @@ def main() -> int:
             file=sys.stderr,
         )
         return 3
+    go_approval(args.target, args.recon_id, " ".join(sys.argv), {"ip": args.ip, "host": args.host})
 
     rc_sum = 0
 

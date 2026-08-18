@@ -2,6 +2,8 @@
 
 Target Intake → Passive Collect → Normalize → Fingerprint (deterministic) → AI Inference (fallback) → Human GO (능동) → Active Recon → Second-Pass Verify → Findings → Report
 
+*(전 과정은 교전 로그(engagement-log)에 시간순으로 기록된다 — T31·T32.)*
+
 각 단계는 FACT / INFERENCE / UNKNOWN을 구분한다. 보완 가능한 누락은 REVISE, Scope 위반은 STOP.
 
 > **횡단 규칙 — 스크립트 자가개선**: 어느 단계에서든 수집기·도구 래퍼가 현장에서 깨지면 원본을 보존한
@@ -53,6 +55,7 @@ Target Intake → Passive Collect → Normalize → Fingerprint (deterministic) 
 
 능동 정찰(RUN) 실행 전에 `recon_id`, 목적, 명령, Target, 예상 부하, 성공/실패 관찰, Cleanup을 표시하고
 `GO <recon_id>`를 기다린다. 도구 파일·명령 초안은 GO 이전에 AI가 작성할 수 있으나, 실행은 GO 뒤에만 한다.
+**승인 사실은 교전 로그에 이벤트로 남긴다**(recon_id·시각·범위 — T31). 승인은 사람이 하고, 그 기록은 증거다.
 
 ## RUN — 능동 정찰
 
@@ -66,12 +69,22 @@ Target Intake → Passive Collect → Normalize → Fingerprint (deterministic) 
   도구 원본 출력(배너 등)은 `confirmed` 후보로 findings 에 바인딩한다.
 - 허용 대역 밖 타깃이 관찰되면 즉시 STOP하고 사람에게 보고한다(랩 내부 피벗 대상일 수 있으므로 자동 확장 금지).
 
+## 전 과정: 교전 감사 추적 (횡단)
+
+모의 레드팀 교전이므로 **전 과정을 시간순으로 기록한다**(T31). 각 단계(collect/normalize/fingerprint/
+GO 승인/active/finding 승격)는 `engagement-log.jsonl`에 **append-only(쌓임)** 이벤트로 남고, 명령
+저널(T30)·observation·finding을 ref로 링크한다. 모든 finding에 `discovered_at`을 기록한다. 이 타임라인이
+보고서의 "방법론·타임라인" 뼈대다.
+
 ## CHECK — 재검증 · 확정 · 보고
 
 1. **Second-Pass Verify** — `confirmed`로 승격되거나 다음 하네스로 넘어갈 고위험 발견은
    원본 증거만 주고 맥락 없이 재판정한다. 두 판정이 갈리면 자동 등급 강등.
 2. **Findings 확정** — 사람이 검토해 `report_eligible`을 정한다. AI가 자가 확정하지 않는다.
-3. **Report** — `report.md`에 발견을 provenance 등급별로 표기하고, 각 FACT는 `[asset:REF]`를 인용한다.
+3. **Report** — `scripts/build_report.py`가 findings·교전 로그·명령 저널·증거 ref를 `report.md`로 **조립**
+   한다(T32). 발견은 provenance 등급별로 표기하고, 각 FACT는 `[asset:REF]`를 인용하며, 범위·승인·타임라인·
+   재현 명령·해시 부록을 포함한다. **보고서는 검증된 데이터의 렌더링이지 AI 서술 생성이 아니다.** 교전
+   전체(정찰+익스플로잇+…) 보고서 조립은 오케스트레이터/보고 하네스 몫이며, 여기서는 정찰 파트까지 낸다.
 
 ## 표준 출력 계약
 

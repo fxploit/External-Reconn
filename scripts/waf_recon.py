@@ -28,6 +28,7 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from collect_web import fetch, now_iso  # noqa: E402
+from lib.engagement import go_approval  # noqa: E402
 
 BLOCK_STATUS = {403, 406, 418, 429, 501, 503}
 BENIGN_PAYLOADS = [
@@ -46,7 +47,7 @@ def _utf8_stdio():
 
 
 def scope_allows(ip):
-    spath = os.path.join(ROOT, "scope.md")
+    spath = os.environ.get("RECON_SCOPE_FILE", os.path.join(ROOT, "scope.md"))
     if not os.path.exists(spath):
         return False
     with open(spath, encoding="utf-8") as f:
@@ -94,6 +95,8 @@ def append_finding(target, finding):
             if x["finding_id"].split("-")[-1].isdigit()]
     fid = max(nums or [0]) + 1
     finding["finding_id"] = f"FND-{fid:03d}"
+    finding.setdefault("discovered_at", now_iso())
+    finding.setdefault("produced_by", "waf_recon.py")
     finding["report_eligible"] = False
     findings.append(finding)
     with open(fpath, "w", encoding="utf-8") as f:
@@ -256,6 +259,7 @@ def main() -> int:
     if not scope_allows(args.ip):
         print(f"[STOP] {args.ip} 은(는) scope.md 허용 대역 밖입니다.", file=sys.stderr)
         return 3
+    go_approval(args.target, args.recon_id, " ".join(sys.argv), {"ip": args.ip, "url": args.url})
     if not (args.wafw00f or args.payloads or args.rate > 0):
         print("[!] --wafw00f / --payloads / --rate 중 하나 이상 지정", file=sys.stderr)
         return 2

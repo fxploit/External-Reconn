@@ -634,3 +634,139 @@ inferred, 게이트 GO. favicon DB 출처 문서화. INFO-06은 범위 결정 �
 **권장 순서(Phase 6)**: T25(sitemap 후보 파싱 — 정찰 가치 큼) → T23·T24(오탐/민감도 위생) →
 T26 → T28(데이터 보강) → T27(경계 명문화, 사람 승인 대기). 각 완료 시 [README.md](README.md) "구현 상태"
 표와 [TASK-RESULT.md](TASK-RESULT.md)를 갱신할 것.
+
+---
+
+# Phase 7 — 테스트 격리 결함 수정 (T29)
+
+### T29. 통합 테스트를 repo `scope.md`에서 격리 (우선순위 1)
+
+**목적**: `npm test`가 저장소의 `scope.md` 상태와 무관하게 통과하도록 한다.
+
+**왜 (확인된 결함)**: 통합 테스트(`tests/integration.test.mjs`)의 게이트-GO 케이스들이 **repo의
+`scope.md`를 직접 읽는다.** 공개 배포 기본값은 `허용 대역: UNSET`이므로, **새 clone에서 `npm test`를
+돌리면 게이트가 REVISE를 내 12건이 실패**한다(`'REVISE' !== 'GO'`). 실측 확인: scope=UNSET → node
+8/20 통과, scope=`127.0.0.1/8` → **20/20 + py 34/34 통과**. 즉 테스트가 전역 상태에 의존하는 격리
+결함이며, 공개 repo가 out-of-box로 "깨진 것처럼" 보인다. (본질은 테스트 위생 문제 — 게이트 로직은 정상.)
+
+**접근** (신뢰 앵커 `checks.mjs`/`scope.md` 규칙은 **바꾸지 않는다**):
+- 테스트가 **자체 임시 scope를 provision**하도록 한다. 후보 방식:
+  1. 테스트 헬퍼(`tests/helpers.mjs`)가 각 통합 테스트의 임시 워크스페이스에 **테스트 전용 scope를
+     주입** — 예: 게이트를 `checkTarget(root, hint)` 대신 테스트용 root(임시 디렉터리에 `scope.md` +
+     `targets/`를 둔 격리 루트)로 실행. `check-recon.mjs`가 이미 `root` 인자를 받으므로 게이트 로직
+     변경 없이 **격리 루트**만 넘기면 된다(가장 깔끔, 신뢰 앵커 불변).
+  2. 또는 테스트 setup에서 임시로 `scope.md`를 세팅하고 teardown에서 복원(전역 파일을 건드리므로
+     병렬·중단 시 취약 — 1안 권장).
+- **회귀 보증**: 수정 후 `scope.md`가 UNSET인 상태에서 `npm test`가 **전부 통과**해야 한다(핵심 완료 기준).
+- scope STOP/REVISE 자체를 검증하는 테스트는 그대로 유지(격리 루트에 UNSET/대역밖 scope를 세팅해 검증).
+
+**완료 기준**: `scope.md`=UNSET(배포 기본값)인 clean 상태에서 `npm test` 20/20 + 34/34 통과. scope
+관련 게이트 동작(UNSET→REVISE, 대역밖→STOP) 검증 테스트는 격리 루트로 유지.
+
+**환각 통제/안전**: 게이트·scope 규칙(신뢰 앵커)은 불변. 테스트가 전역 `scope.md`를 영구 변경하지 않게 한다.
+
+---
+
+# Phase 8 — 명령 실행 저널 (T30)
+
+### T30. Docker 래퍼가 명령어 + 실행결과를 증거로 보존 (우선순위 1)
+
+**목적**: `recon.mjs`(모든 명령의 단일 통과점)가 실행한 **명령어와 stdout/stderr/exit code를 증거로
+영속화**한다. "무슨 명령을, 어느 이미지에서, 무슨 결과로" 돌렸는지의 감사 추적을 남긴다.
+
+**왜 (확인된 공백)**: 현재 [recon.mjs](scripts/recon.mjs)는 `docker exec` 출력을 콘솔로 흘려보내기만
+하고(`process.stdout.write`) **저장하지 않는다.** 실행 명령·결과가 증거로 안 남아 재현·보고서 근거가
+부족하고, "도구가 실제로 무엇을 냈는가"의 원본이 사라진다. 결국 모든 실행이 Docker 래퍼를 지나므로,
+**여기가 명령·결과를 증거로 남길 단일 최적 지점**이다.
+
+**접근** (신뢰 앵커 불변):
+- `recon.mjs`가 각 실행마다 기록한다:
+  - **명령**: 전체 argv(`docker exec recon ...`의 내부 명령까지), 타깃, 환경(container / host-fallback)
+  - 시작/종료 시각, **exit code**, **`runtime_image_digest`**(어느 이미지가 실행했는지)
+  - **stdout·stderr를 파일로 저장 + 각 sha256**
+- **저장 위치**:
+  - `--target <host>` 있으면 `targets/<host>/captures/observation/run-log/<ts>-<seq>.out.txt`/`.err.txt`
+    + 메타는 `command-log.jsonl`에 한 줄씩 append(cmd·exit·digest·out_ref·err_ref·sha·ts).
+  - `--target` 없으면 repo 루트 `run-log/`(gitignore)에 동일 구조.
+- **스트리밍 유지**: 콘솔 출력은 지금처럼 보여주되 파일로도 저장(현재 `spawnSync` 버퍼 방식이라 라이브
+  스트리밍은 아님 — 한계 주석 명시, 필요 시 후속에서 spawn+tee).
+- **바이너리 안전**: 출력을 버퍼로 캡처해 저장(비UTF-8 출력도 손실 없이), sha는 바이트 기준.
+- **민감정보 규율**: 명령·출력은 `observation`(gitignore)에만 — raw 캡처와 동일. 시크릿이 인자/출력에
+  섞일 수 있으므로 공개 저장소에 올리지 않는다.
+- (선택) 게이트: `command-log.jsonl`의 out/err ref 존재·sha 재검증(가벼운 무결성 체크).
+
+**완료 기준**: `recon.mjs`로 명령 실행 시 `command-log.jsonl`에 명령·exit·digest·out/err ref·sha가
+남고, 저장된 출력이 실제 실행 결과와 바이트 일치. host 폴백도 기록(digest 없음 표기). 회귀 테스트 추가.
+`run-log/`는 `.gitignore`에 추가.
+
+**환각 통제**: 명령·결과는 Tool Observation(해석 없음), sha256로 변조 탐지, `runtime_image_digest`로
+어느 환경이 산출했는지 고정 → "AI가 도구 결과를 지어내지 못한다"는 원본 증거.
+
+---
+
+**권장 순서**: T29(테스트 격리, 공개 repo out-of-box 통과) → **T30(명령 저널)** → 이후 Phase 6(WSTG 위생).
+
+---
+
+# Phase 9 — 교전 감사 추적 + 보고서 조립 (T31·T32)
+
+> 배경: 이 CTF는 실질적으로 **모의 레드팀 교전 → 침투 → 보고서**다. 보고서의 뼈대는 findings뿐 아니라
+> "무엇을, 언제, 어떤 승인·근거로 했나"의 **전 과정 감사 추적**이다. 원자적 증거(명령 저널 T30·
+> observation·findings)는 있으나, 이를 **시간순 타임라인으로 엮고 보고서로 조립하는 층**이 없다.
+> **런타임 기대치는 [AGENTS.md](AGENTS.md) "교전 감사 추적"·[workflow.md](harness/workflow.md)에 있다.**
+
+### T31. 교전 감사 추적 (engagement audit trail) (우선순위 1)
+
+**목적**: 침투 전 과정을 시간순 감사 추적으로 남긴다 — 발견 시각·GO 승인 이벤트·통합 타임라인.
+
+**왜 (확인된 공백)**: ① findings에 **발견 시각(`discovered_at`)이 없어** 타임라인을 못 만든다.
+② 능동 러너의 **GO 승인이 플래그(`--approved`)로만** 있고 "recon_id X를 시각 T에 승인받아 실행"이
+증거로 안 남는다. ③ 명령 저널(T30)·observation·findings가 흩어져 **통합 타임라인이 없다**.
+
+**접근**:
+- **발견 시각**: 모든 생산자(fingerprint/active_recon/merge_fallback/second_pass/extract_assets/…)가
+  finding에 `discovered_at`(ISO8601, 생산 시각) 기록. `produced_by`(있음)와 함께. 게이트는 무결성만
+  검사, 시각은 Observation 성격.
+- **GO 승인 저널링**: 능동 러너(`active_recon`/`discover_vhost`/`waf_recon`/`discover_dns --active`)가
+  `--approved` 실행 시, `{event:"go-approval", recon_id, command, approved_at}`을 교전 로그에 남긴다.
+  (승인 자체는 사람이 채팅에서 — 그 **사실과 시각·범위를 증거로** 남기는 것.)
+- **통합 교전 로그** `targets/<host>/engagement-log.jsonl`(**append-only, 쌓임**): 시간순 이벤트
+  (collect→normalize→fingerprint→go-approval→active-recon→finding-promoted 등). 각 이벤트는
+  command-log·observation·finding을 **ref(포인터)로 링크**(중복 저장 금지). T30 명령 저널과 findings를
+  엮는 상위 타임라인. 각 스크립트가 자기 이벤트를 append하는 공용 헬퍼(`scripts/lib/engagement.py`) 제공.
+- **(옵션) 수집 스냅샷 버저닝**: 재수집 시 `captures/<ts>/`로 보존해 "타깃이 시점별로 어떻게 보였나"를
+  타임라인에 반영(현재는 manifest/raw 덮어씀). 기본은 스냅샷, `--snapshot` 시 버저닝.
+
+**완료 기준**: 파이프라인 실행 후 `engagement-log.jsonl`에 시간순 이벤트가 ref와 함께 쌓이고,
+findings에 `discovered_at`이 있으며, 능동 실행이 go-approval 이벤트로 남는다. 게이트 GO. 회귀 테스트.
+
+**환각 통제**: 타임라인은 command-log·observation·finding의 **ref만 엮음**(새 주장 생성 X). append-only
+라 과거 이벤트 불변. 승인 이벤트는 사람 결정의 기록이지 AI 자가승인이 아니다.
+
+---
+
+### T32. 정찰 보고서 조립 (우선순위 2)
+
+**목적**: findings + 교전 로그 + 명령 저널 + 증거 ref를 **레드팀 정찰 보고서(report.md)로 조립**한다.
+
+**왜**: 보고서가 최종 산출물이다. 지금 `report.md`는 빈 템플릿이고 조립 스크립트가 없다.
+
+**접근**:
+- `scripts/build_report.py` — `findings.json`·`engagement-log.jsonl`·`command-log.jsonl`·evidence ref를
+  읽어 `report.md`로 렌더링. **AI 서술 생성 아님**: 데이터를 구조화해 채우고, 모든 FACT는 evidence ref를
+  인용, 재현 명령은 command-log에서 가져온다.
+- **report.md 템플릿 확장**: ① 요약 ② **범위·승인**(scope + go-approval 이벤트) ③ **방법론**(수행 단계)
+  ④ **타임라인**(engagement-log) ⑤ **발견**(provenance 등급별, `confirmed`/`inferred`/`guess`/`unknown`)
+  ⑥ **증거 부록**(자산 해시·재현 명령·이미지 digest). 시크릿·PII 마스킹 유지.
+- **경계**: 완전한 레드팀 보고서는 정찰+익스플로잇+포스트익스플로잇을 아우르므로 **교전 전체 보고서
+  조립은 오케스트레이터/보고 하네스** 몫이다. T32는 **정찰 파트 보고서**까지. 교전 로그를 표준 포맷으로
+  내보내 상위 조립이 이어받게 한다.
+
+**완료 기준**: `build_report.py`가 실제 타깃 산출물로 report.md를 채우고, 모든 FACT가 evidence ref를
+가지며, 타임라인·승인·재현 명령·해시가 포함된다. 마스킹 유지. 게이트 GO(발견 무결성).
+
+**환각 통제**: 보고서는 검증된 데이터의 렌더링(생성 아님), FACT마다 ref 인용, 재현 명령은 저널 원본.
+
+---
+
+**권장 순서**: T31(감사 추적 — 타임라인 기반) → T32(보고서 조립). T31은 T30 저널 위에 얹으므로 T30 이후.

@@ -27,6 +27,7 @@ import sys
 # 공유 헬퍼는 정적 수집기에서 재사용(중복 방지) — 같은 scripts/ 디렉터리라 import 가능.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from collect_web import ROOT, UA, kind_for, now_iso, rel, safe_name, sha256_hex  # noqa: E402
+from lib.engagement import append_event  # noqa: E402
 
 
 def _require_playwright():
@@ -315,6 +316,8 @@ def main() -> int:
     print(f"[*] manifest: {rel(mpath)}")
     print("[*] 다음: python scripts/normalize_js.py " + args.target
           + " && python scripts/fingerprint.py " + args.target)
+    append_event(args.target, {"event": "collect", "produced_by": manifest["produced_by"],
+                               "manifest_ref": rel(mpath), "asset_count": len(manifest["assets"])})
     return 0 if not nav_error else 2
 
 
