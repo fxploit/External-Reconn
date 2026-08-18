@@ -12,6 +12,8 @@ sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
 import normalize_js  # noqa: E402
 import fingerprint  # noqa: E402
+import extract_assets  # noqa: E402
+import parse_metafiles  # noqa: E402
 sys.path.insert(0, os.path.join(ROOT, "scripts", "lib"))
 import self_repair  # noqa: E402
 
@@ -72,6 +74,42 @@ with tempfile.TemporaryDirectory() as d:
 
 # ── fingerprint: 인코딩 견고한 decode ────────────────────────────────────────
 check("fingerprint decode_bytes CP949", fingerprint.decode_bytes(kr) == "한글 테스트")
+
+# ── WSTG-INFO-05: 주석·내부IP 추출 (extract_assets) ─────────────────────────
+# 사설/루프백 IP 판별 (옥텟 범위 확정)
+check("private ip 10.x", extract_assets.is_private_ipv4("10.10.14.2"))
+check("private ip 192.168", extract_assets.is_private_ipv4("192.168.1.1"))
+check("private ip 172.16", extract_assets.is_private_ipv4("172.16.0.5"))
+check("private ip 127 loopback", extract_assets.is_private_ipv4("127.0.0.1"))
+check("공인 IP 아님(range)", not extract_assets.is_private_ipv4("172.32.0.1"))
+check("옥텟 초과 거부", not extract_assets.is_private_ipv4("10.256.0.1"))
+
+# PRIVATE_IP 정규식은 공인 IP를 잡지 않는다
+check("공인 IP 미매칭", extract_assets.PRIVATE_IP.search("connect 8.8.8.8 now") is None)
+m_ip = extract_assets.PRIVATE_IP.search("host=10.10.110.5;")
+check("사설 IP 매칭", m_ip is not None and m_ip.group(1) == "10.10.110.5")
+
+# byte_quote: UTF-8 근거는 그대로, 없는 근거는 None (게이트 재검증과 동일 규율)
+_data = "<!-- legacy endpoint /api/v1/old -->".encode("utf-8")
+_q = extract_assets.byte_quote("legacy endpoint /api/v1/old", _data)
+check("byte_quote 실재 근거", _q is not None and _q.encode("utf-8") in _data)
+check("byte_quote 없는 근거 None", extract_assets.byte_quote("존재하지않는문자열zzz", _data) is None)
+# cp949 한글 주석: 디코딩 텍스트는 utf-8 바이트로 파일에 없지만 ASCII 런은 실재해야 함
+_cp = "<!-- 내부용 admin path /secret-admin -->".encode("cp949")
+_q2 = extract_assets.byte_quote("내부용 admin path /secret-admin", _cp)
+check("byte_quote cp949 ASCII 폴백", _q2 is not None and _q2.encode("utf-8") in _cp)
+
+# HTML 주석 규칙 매칭
+_cm = extract_assets.COMMENT_RULES[0]["regex"].search("<html><!-- TODO remove debug --></html>")
+check("html-comment 매칭", _cm is not None and "TODO remove debug" in _cm.group(1))
+check("comment tag 분류", extract_assets.comment_tags("TODO api token /old.php") == ["TODO", "credential-ish", "legacy-endpoint"])
+check("IP noise 분류", extract_assets.ip_context("127.0.0.1", 0, 9, "html", "127.0.0.1") == ("inferred", True))
+check("robots candidate 파싱", parse_metafiles.parse_robots("Disallow: /admin\nAllow: /public") == [
+    ("/admin", "robots:disallow"), ("/public", "robots:allow")
+])
+check("sitemap candidate 파싱", parse_metafiles.parse_sitemap(
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>http://127.0.0.1/a</loc></url></urlset>'
+) == [("http://127.0.0.1/a", "sitemap:loc")])
 
 # ── T20: 자가개선 가드레일 ─────────────────────────────────────────────────────
 import shutil  # noqa: E402

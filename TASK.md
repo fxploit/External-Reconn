@@ -472,3 +472,165 @@ Docker 이미지에 고정, checksum). 통합 시 출력은 디코드본으로 �
 
 **환각 통제**: 고유 마커=confirmed / 행위 추론=inferred / IDS 미탐=unknown, 프로브 응답을 evidence로
 바인딩, 능동 프로브는 GO 게이트, 결과 클래스 분리로 오탐 억제.
+
+---
+
+# Phase 6 — WSTG-INFO 커버리지 정합 (T23~T28)
+
+> 근거: OWASP WSTG 4.1 Information Gathering(INFO-01~10)과 본 하네스를 매핑해 공백을 메운다.
+> 사설 CTF 랩 대상이라 INFO-01(검색엔진/Shodan)은 "공인 인터넷·제3자 정찰 STOP" 규율과 충돌하므로
+> **의도적 제외**다. INFO-06(진입점 전수화)·INFO-07(실행경로)은 **후속 취약점 진단 하네스의 입력**
+> 영역이라 이 하네스 범위 판단이 필요하다(아래 T28 참고, 기본은 보류).
+>
+> **이번 세션 완료(✅) — 다른 에이전트는 재작업 금지, 확장만**:
+> - **WSTG-INFO-03 메타파일 패시브 수집**: [collect_web.py](scripts/collect_web.py)에 `METAFILES`
+>   상수(robots.txt/sitemap.xml/security.txt/.well-known/security.txt/humans.txt)를 진입 오리진에서
+>   고정 목록·1회씩 GET. 존재분만 `asset_kind:"metafile"` 자산으로 등록(sha256), 부재/실패는
+>   `captures/observation/metafiles-absent.txt`에 보존. `--skip-metafiles`로 off. `extract_assets.py`의
+>   `KINDS`에 `"metafile"` 추가돼 이어서 마이닝됨.
+> - **WSTG-INFO-05 개발자 주석·내부 IP 추출**: [extract_assets.py](scripts/extract_assets.py)에
+>   `COMMENT_RULES`(html `<!-- -->` / js·css `/* */`), `PRIVATE_IP`(RFC1918+127/8) + `is_private_ipv4()`
+>   옥텟·범위 이중검증, `byte_quote()`(게이트와 동일 바이트 재검증 규율, cp949 등 인코딩 불일치 시 실재
+>   ASCII 런 폴백). `asset_kind:"comment"`/`"internal-ip"`, 둘 다 존재=`confirmed`·해석=inferred/사람.
+>   obs에 `comments`/`internal_ips` 키. 유닛 테스트 `tests/test_python.py`에 추가(30 passed).
+>
+> ⚠️ **로컬 통합 테스트 사전조건**: `scope.md`가 `UNSET`이면 통합 스위트가 REVISE로 대량 실패한다.
+> 실행 전 `허용 대역: 127.0.0.1/8`을 **임시** 설정하고 종료 후 `UNSET`으로 복원할 것(scope.md 주석 지침).
+> (참고: T11 Django 해시 테스트는 이 환경에서 기존부터 실패 — 본 세션 변경과 무관.)
+
+---
+
+### T23. 내부 IP 오탐 신뢰도 등급화 (우선순위 2)
+
+**목적**: T25(세션 완료분)의 `internal-ip` 발견을 문맥 기반으로 등급화해 오탐 신호를 낮춘다.
+
+**왜 (현재 한계)**: 지금은 사설 IP 문자열이 **존재하면 무조건 `confirmed(존재)`**. 그러나 semver·예제
+상수·vendor 라이브러리에 박힌 IP는 "내부 인프라"가 아닐 수 있다. 존재는 여전히 confirmed지만
+"내부 인프라 주소일 가능성"은 등급이 필요하다.
+
+**접근** ([extract_assets.py](scripts/extract_assets.py) internal-ip 블록 확장, 로직 최소·데이터 우선):
+- finding에 `confidence`(또는 provenance 보조) 부여: 문맥이 `x.y.z.w/버전`·semver 인접이면 `guess`,
+  minified vendor 자산(react-dom 등)이면 `guess`, 그 외 `inferred`. **존재 자체(confirmed)는 유지.**
+- **노이즈 allowlist**(데이터): `0.0.0.0`, `127.0.0.1`, `192.168.0.1`, `192.168.1.1` 등 흔한 문서/기본 상수
+  → 별도 태그(`ip_noise:true`)로 낮은 신호.
+- **타깃 자기참조 제외**: 발견 IP == 스캔 대상 IP면 자명 → 낮은 신호 태그.
+- 결과는 report 승격 우선순위에만 영향. 원문·obs는 그대로 보존(삭제 금지).
+
+**완료 기준**: 픽스처(semver 인접 IP / vendor lib IP / 실제 내부 호스트 IP)에서 등급이 갈리고 게이트 GO.
+회귀 테스트 추가. 존재=confirmed 규율 불변.
+
+**환각 통제**: 존재는 confirmed 유지, "내부 인프라 여부"만 inferred/guess로 하향. 지어낸 등급 금지(문맥 근거).
+
+---
+
+### T24. 주석 민감도 분류 + 재마스킹 (우선순위 2)
+
+**목적**: T25(세션 완료분)의 `comment` 발견에서 민감정보 누출을 사전 차단하고, 사람 검토 우선순위를 준다.
+
+**왜 (현재 한계)**: 주석 원문 프리픽스가 finding `evidence_quote`에 들어간다. findings.json은
+`targets/*`(gitignore·로컬 전용)라 유출 위험은 낮지만, 주석 안 키/비번이 quote로 남을 수 있고 노이즈가 많다.
+
+**접근** ([extract_assets.py](scripts/extract_assets.py) COMMENT 블록 확장):
+- **주석 텍스트에 `SECRET_RULES` 재적용**: quote 확정 전 시크릿 패턴이 있으면 마스킹(기존 `mask()` 재사용).
+  주석 finding의 evidence_quote에도 이중 마스킹.
+- **유형 태깅**(데이터): `TODO`/`FIXME`/`XXX`/`HACK`, `internal-host`(사설 IP·`.local`·`.htb` 포함),
+  `credential-ish`(`password`/`api[_-]?key`/`token` 단어), `legacy-endpoint`(`/api`·`.php`·주석처리 경로).
+  finding에 `comment_tags` 배열로.
+- report_eligible=false 기본 유지. 태그로 사람이 우선순위 판단.
+
+**완료 기준**: 시크릿 심은 주석 픽스처에서 quote가 마스킹되고, 유형 태깅이 정확하며 게이트 GO. 회귀 테스트.
+
+**환각 통제**: 마스킹 규율(쿠키/시크릿과 동일), 태그는 결정론 regex 근거. 존재=confirmed 유지.
+
+---
+
+### T25. sitemap/robots 재귀 파싱 → candidate-paths 관찰물 (수동 파싱/능동 fetch 분리) (우선순위 1)
+
+**목적**: 메타파일이 **선언한 URL·경로**를 재귀로 모아 능동 정찰 후보 목록을 만든다. 단, **모으기(파싱)와
+접속(fetch)을 엄격히 분리**한다.
+
+**왜 (오해 방지 — 중요)**: sitemap을 재귀로 풀면 "**사이트가 선언한 URL 전체**"는 나오지만 이는
+"**접속 가능한 모든 페이지**"가 아니다. 관리자·내부 API·인증 뒤·동적 라우트는 보통 sitemap에 없고,
+sitemap에는 이미 삭제된(404) URL이 남기도 한다. 완전 커버리지는 sitemap(선언) + 링크 크롤(T16) +
+**디렉터리 브루트포스(능동)** 를 합쳐야 근접한다. 그리고 **sitemap의 URL을 실제로 fetch하는 것 자체가
+능동 행위**다. 따라서 이 태스크는 **관찰물(후보 목록)만 산출**하고 접속은 능동 단계로 넘긴다.
+
+**접근**:
+- **파싱 전용(요청 없음)**: 이미 수집된 `asset_kind:"metafile"` 원본(robots.txt/sitemap.xml)에서
+  - robots.txt의 `Disallow`/`Allow` 경로, sitemap의 `<loc>` URL, **`<sitemapindex>` 중첩 사이트맵을
+    재귀 파싱**(단, 중첩 sitemap이 **아직 수집 안 된 별도 URL이면 fetch하지 않고** "미수집 후보"로 표기 —
+    수집은 T16 크롤 또는 능동 단계에서). 재귀 폭주 방지 상한.
+  - 산출: `targets/<host>/captures/observation/candidate-paths.txt`(경로·URL·출처 메타파일 태그).
+    이는 **관찰물**이지 finding이 아니다(접속 미확인이므로 존재 단정 불가).
+- **능동 연결**: [active_recon.py](scripts/active_recon.py)가 `--candidate-paths <file>`로 이 목록을
+  입력받아 **`GO <recon_id>`+`--approved`+스코프 게이트** 하에 접속·발견 기록. 대역 밖 URL은 STOP(미접속).
+- robots `Disallow` 경로는 **단서일 뿐** — 자동 추종 금지, 반드시 능동 단계 경유.
+
+**완료 기준**: robots/sitemap(+중첩) 픽스처에서 candidate-paths.txt가 요청 없이 생성되고, 능동 단계가
+GO 승인 시에만 그 목록을 접속한다. 대역 밖 후보 미접속(STOP). 회귀 테스트.
+
+**환각 통제**: 파싱=관찰물(존재 단정 아님), 접속 후에만 finding. 수동/능동 경계 유지, 대역 게이트 준수.
+
+---
+
+### T26. security.txt 연락처(PII) 마스킹 (우선순위 3)
+
+**목적**: security.txt의 연락 이메일 등 PII를 finding/report에서 마스킹한다(산출물 위생).
+
+**접근**: `asset_kind:"metafile"` 중 security.txt에서 `Contact:` 이메일을 추출하면 `a***@domain` 마스킹
+형태로만 finding에 두고, 원문은 gitignore 대상 raw에만. (공개 목적 파일이라 위험은 낮으나 규율 일관성.)
+
+**완료 기준**: security.txt 픽스처에서 이메일이 마스킹되어 노출되고 게이트 GO. 회귀 테스트.
+
+**환각 통제**: 시크릿/쿠키와 동일 마스킹 규율.
+
+---
+
+### T27. 수동/"semi-passive" 경계 명문화 (⚠️ 신뢰 앵커 수정 — 사람 승인 필수)
+
+**목적**: 메타파일 수집(T-세션분)처럼 "브라우저가 자동으로 보내지 않는 표준 well-known 파일의 단발 GET"을
+어느 강도로 분류할지 계약에 명시한다.
+
+**⚠️ 자가수정 금지**: 이 태스크는 [AGENTS.md](AGENTS.md)·[invariants.md](harness/policies/invariants.md)
+= **신뢰 앵커** 수정을 포함한다. 코딩 에이전트는 **직접 고치지 말고**, 변경 초안을 **사람에게 제안**한 뒤
+승인받아 반영한다(self-repair 가드레일 규율과 동일).
+
+**접근(제안 초안)**:
+- 수동/능동 2분류에 **"semi-passive"**(표준 well-known 파일 고정 목록·오리진 한정·단발 GET) 티어를 정의할지
+  검토. 메타파일 수집이 여기 속함을 명시.
+- manifest에 **총 요청 수(request budget)**를 기록해 "수동이라는데 요청이 몇 건인가"를 감사 가능하게(이건
+  신뢰 앵커 아님 — 수집기 변경으로 먼저 가능).
+- 결론이 "메타파일도 GO 필요"로 나면 collect_web의 `METAFILES` 수집을 게이트 뒤로 이동.
+
+**완료 기준**: 사람 승인된 경계 정의가 AGENTS/invariants에 반영되고, 코드(수집기 기본 동작)가 그 정의와
+일치. request budget이 manifest에 기록되고 회귀 테스트.
+
+---
+
+### T28. 잔여 WSTG 공백 — favicon 해시(INFO-09)·인프라 헤더(INFO-10)·진입점(INFO-06) (우선순위 3)
+
+**목적**: 남은 WSTG 항목을 데이터 우선으로 보강하되, 실데이터가 필요한 것은 정직하게 소싱한다.
+
+**접근**:
+- **INFO-09 favicon 해시 매칭**: favicon은 이미 `asset_kind:"favicon"`로 수집된다. mmh3(Shodan 방식:
+  base64(body)→murmur3) 또는 sha256을 계산해 `harness/signatures/maps/favicon-hashes.json`(해시→제품)로
+  매칭. **⚠️ 핵심 규율**: 해시 DB 값은 **실제 제품 favicon에서 계산해 채운다(출처 기록)** — "CVE는 기억이
+  아니라 조회로"와 동일하게, **LLM 기억으로 해시를 지어내지 않는다**. 초기엔 소량 실측치로 시작.
+- **INFO-10 인프라 헤더 시그니처**(데이터): `Via`/`X-Cache`/`X-Forwarded-*`/`X-Served-By`/`Server-Timing`
+  등을 `harness/signatures/*.json`에 헤더 매칭(T9 substrate 재사용)으로 추가 → 리버스프록시·캐시·LB 계층
+  `inferred`. 스크립트 로직 변경 없이 데이터로.
+- **INFO-06 진입점(보류 판단)**: form/input/GET·POST 파라미터/GraphQL 입력 벡터 목록화는 **후속 취약점
+  진단 하네스의 입력**일 수 있다. 착수 전 **범위 결정**(이 하네스가 할지 위임할지)을 사람과 확정. 하기로
+  하면 collect 단계에서 `<form>`·`<input>`·쿼리스트링을 구조화해 관찰물로만(공격 아님).
+
+**완료 기준**: favicon 해시 매칭이 실측 DB로 제품 confirmed(자산 해시 일치), 인프라 헤더가 근거와 함께
+inferred, 게이트 GO. favicon DB 출처 문서화. INFO-06은 범위 결정 기록.
+
+**환각 통제**: favicon 해시는 실측 자산 기반(confirmed), 인프라 헤더는 마커 존재=confirmed/계층 해석
+=inferred. **해시 DB 날조 금지**(외부 실측만).
+
+---
+
+**권장 순서(Phase 6)**: T25(sitemap 후보 파싱 — 정찰 가치 큼) → T23·T24(오탐/민감도 위생) →
+T26 → T28(데이터 보강) → T27(경계 명문화, 사람 승인 대기). 각 완료 시 [README.md](README.md) "구현 상태"
+표와 [TASK-RESULT.md](TASK-RESULT.md)를 갱신할 것.

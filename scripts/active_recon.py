@@ -339,6 +339,50 @@ def server_probe(target, ip, port, scheme, recon_id, host=None):
     return len(results)
 
 
+def candidate_probe(target, ip, port, scheme, recon_id, candidate_file, host=None):
+    """Fetch parser output only after GO; candidate parsing itself makes no requests."""
+    from collect_web import fetch
+    base = f"{scheme}://{host or ip}:{port}"
+    entries = []
+    found = []
+    with open(candidate_file, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            if line.startswith("#") or "\t" not in line:
+                continue
+            source, value = line.rstrip("\n").split("\t", 1)
+            parsed = __import__("urllib.parse", fromlist=["urlparse"]).urlparse(value)
+            if parsed.scheme and parsed.netloc and parsed.netloc != (host or ip):
+                entries.append({"source": source, "url": value, "status": "STOP_EXTERNAL_NOT_FETCHED"})
+                continue
+            url = value if parsed.scheme else base + (value if value.startswith("/") else "/" + value)
+            st, _hd, _rh, body, err = fetch(url, timeout=10, host=host)
+            entries.append({"source": source, "url": url, "status": st, "error": err})
+            if err or st is None:
+                continue
+            odir = os.path.join(ROOT, "targets", target, "captures", "observation")
+            os.makedirs(odir, exist_ok=True)
+            out = os.path.join(odir, f"candidate-paths-{recon_id}.txt")
+            with open(out, "a", encoding="utf-8", newline="\n") as of:
+                of.write(f"{source}\t{url}\t{st}\t{len(body)}\n")
+            found.append((source, url, st, out))
+    for source, url, st, out in found:
+        with open(out, "rb") as evidence:
+            data = evidence.read()
+        append_finding(target, {
+            "asset_kind": "path", "product": "UNSET", "version": "UNSET",
+            "version_bound": "UNSET", "provenance": "inferred",
+            "evidence_path": os.path.relpath(out, ROOT).replace("\\", "/"),
+            "evidence_quote": f"{source}\t{url}\t{st}",
+            "asset_sha256": __import__("hashlib").sha256(data).hexdigest(),
+            "reasoning": "candidate-paths 관찰물의 GO 승인 후 fetch 결과; 접근 가능성은 이 응답에 한정",
+            "verified_by": ["active_recon.py:candidate-paths"],
+            "http_status": st,
+        })
+    odir = os.path.join(ROOT, "targets", target, "captures", "observation")
+    with open(os.path.join(odir, f"candidate-probe-{recon_id}.json"), "w", encoding="utf-8") as f:
+        json.dump({"recon_id": recon_id, "kind": "candidate-paths", "results": entries}, f, indent=2, ensure_ascii=False)
+
+
 def main() -> int:
     _utf8_stdio()
     ap = argparse.ArgumentParser(description="Active recon runner (needs human GO)")
@@ -355,7 +399,9 @@ def main() -> int:
     ap.add_argument("--host", default=None,
                     help="HTTPS vhost/SNI 용 호스트명 — URL 을 이 호스트로, 스코프 검사는 ip 로")
     ap.add_argument("--server-probe", action="store_true",
-                    help="서버사이드 프로브(기본 경로·에러페이지) 수집 후 fingerprint 재실행 (T12)")
+                     help="서버사이드 프로브(기본 경로·에러페이지) 수집 후 fingerprint 재실행 (T12)")
+    ap.add_argument("--candidate-paths", default=None,
+                    help="parse_metafiles.py 관찰물을 GO 승인 후 fetch")
     args = ap.parse_args()
 
     # ── GO 게이트 ──────────────────────────────────────────────────────────
@@ -430,6 +476,13 @@ def main() -> int:
     # 3) 서버사이드 프로브 (T12) — 기본 경로·에러 유발 지문
     if args.server_probe:
         server_probe(args.target, args.ip, args.port, args.scheme, args.recon_id, host=args.host)
+
+    if args.candidate_paths:
+        if not os.path.exists(args.candidate_paths):
+            print(f"[!] candidate file not found: {args.candidate_paths}", file=sys.stderr)
+            return 2
+        candidate_probe(args.target, args.ip, args.port, args.scheme, args.recon_id,
+                        args.candidate_paths, host=args.host)
 
     print(f"\n[*] 완료. 재검증/확정 후 게이트: npm run check -- {args.target}")
     return 0 if rc_sum == 0 else 1

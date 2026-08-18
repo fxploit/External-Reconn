@@ -27,6 +27,16 @@ from urllib.error import URLError, HTTPError
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UA = "recon-harness/0.1 (passive collector)"
 
+# WSTG-INFO-03: 웹서버가 스스로 노출하는 표준 메타/정책 파일. 고정 목록(브루트포스 아님),
+# 진입 오리진에서 1회씩만 GET — 표준적·저위험이라 패시브로 취급한다(경계 논의는 README).
+METAFILES = [
+    "/robots.txt",
+    "/sitemap.xml",
+    "/security.txt",
+    "/.well-known/security.txt",
+    "/humans.txt",
+]
+
 
 def sha256_hex(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
@@ -69,6 +79,7 @@ def fetch(url: str, timeout: int = 20, host: str = None):
     raw_headers 는 응답 순서·중복(다중 Set-Cookie)을 보존한 (Name, Value) 리스트다.
     T9(헤더·쿠키 1급 자산)부터 이 리스트로 __headers__.txt/__cookies__.txt 를 만든다.
     """
+    fetch.request_count = getattr(fetch, "request_count", 0) + 1
     headers = {"User-Agent": UA}
     if host:
         # 평문 HTTP vhost: URL 은 IP 로 접속하되 Host 헤더를 vhost 로 덮어쓴다.
@@ -147,8 +158,11 @@ def main() -> int:
     ap.add_argument("--max-assets", type=int, default=60)
     ap.add_argument("--depth", type=int, default=1,
                     help="크롤 깊이(T16, 기본 1=진입+참조. 상한 3). 상향은 요청량 증가 — 명시적 선택")
+    ap.add_argument("--skip-metafiles", action="store_true",
+                    help="WSTG-INFO-03 표준 메타파일(robots/sitemap/security.txt 등) 수집 생략")
     args = ap.parse_args()
     args.depth = max(0, min(args.depth, 3))
+    fetch.request_count = 0
 
     tdir = os.path.join(ROOT, "targets", args.target)
     raw_dir = os.path.join(tdir, "captures", "raw")
@@ -165,6 +179,8 @@ def main() -> int:
         "collection_mode": "static",
         "host_override": args.host,
         "crawl_depth": args.depth,
+        "request_budget": {"planned_metafiles": 0 if args.skip_metafiles else len(METAFILES),
+                           "actual_requests": 0},
         "assets": [],
     }
 
@@ -223,6 +239,34 @@ def main() -> int:
 
     entry_kind = kind_for(args.url, headers.get("Content-Type", ""))
     _save_asset(args.url, entry_kind, status, headers.get("Content-Type", ""), body, "AST-000")
+
+    # ── WSTG-INFO-03: 표준 메타/정책 파일 (고정 목록, 진입 오리진, 1회씩) ─────────
+    # 존재하는 것만 1급 자산으로 등록 → extract_assets/fingerprint 가 이어서 마이닝한다.
+    # 부재(4xx/5xx)·실패도 삭제하지 않고 observation 에 남긴다(invariants).
+    if not args.skip_metafiles:
+        mf_missing = []
+        mf_found = 0
+        for mi, mpath_rel in enumerate(METAFILES):
+            mf_url = urljoin(args.url, mpath_rel)
+            mf_st, mf_hd, mf_rh, mf_body, mf_err = fetch(mf_url, args.timeout, host=args.host)
+            if mf_err:
+                mf_missing.append(f"{mpath_rel}\terror\t{mf_err}")
+                continue
+            if mf_st and 200 <= mf_st < 300 and mf_body:
+                mf_kind = kind_for(mf_url, mf_hd.get("Content-Type", "")) or "metafile"
+                _save_asset(mf_url, "metafile", mf_st, mf_hd.get("Content-Type", ""),
+                            mf_body, f"AST-MF-{mi:02d}")
+                # 자산 종류는 metafile 로 통일하되, 콘텐츠 종류 힌트는 source_url 로 남긴다.
+                manifest["assets"][-1]["content_kind_hint"] = mf_kind
+                print(f"[+] {'metafile':8s} {mf_url} ({mf_st}) -> raw")
+                mf_found += 1
+            else:
+                mf_missing.append(f"{mpath_rel}\t{mf_st}")
+        if mf_missing:
+            with open(os.path.join(obs_dir, "metafiles-absent.txt"), "w", encoding="utf-8") as f:
+                f.write("# WSTG-INFO-03 metafiles: 부재/실패 (path<TAB>status[/error])\n")
+                f.write("\n".join(mf_missing) + "\n")
+        print(f"[i] metafiles: {mf_found} present, {len(mf_missing)} absent/failed")
 
     # ── 깊이 제한 크롤 (T16) — 동일 netloc 내부만 따라가고, 외부 링크는 기록만 ──
     seen = {args.url}
@@ -298,6 +342,7 @@ def main() -> int:
 
     mpath = os.path.join(tdir, "captures", "manifest.json")
     with open(mpath, "w", encoding="utf-8") as f:
+        manifest["request_budget"]["actual_requests"] = fetch.request_count
         json.dump(manifest, f, indent=2, ensure_ascii=False)
     print(f"\n[*] {len([a for a in manifest['assets'] if a.get('raw_ref')])} assets saved (depth={args.depth})")
     print(f"[*] manifest: {rel(mpath)}")
